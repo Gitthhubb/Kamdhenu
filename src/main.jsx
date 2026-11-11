@@ -10,7 +10,7 @@ const DEFAULT_STATE={rows:[],transactions:[],rates:{cow_rate:0,buffalo_rate:0},b
 const blankForm=(rates=null)=>({sale_date:today(),buyer:'Milkman 1',milk_type:'cow',quantity:'',rate:rates?String(rates.cow_rate??0):'',remarks:''});
 const blankTransaction=()=>({date:today(),kind:'received',amount:'',party:'',category:'paddy_stalk',remarks:''});
 function readStore(){
- try{const raw=localStorage.getItem(STORE_KEY);if(!raw)return structuredClone(DEFAULT_STATE);const p=JSON.parse(raw);if(!p||!Array.isArray(p.rows)||!p.rates||!Array.isArray(p.buyers))throw new Error('Stored ledger has an invalid format.');return {...DEFAULT_STATE,...p,transactions:Array.isArray(p.transactions)?p.transactions:[],rates:{...DEFAULT_STATE.rates,...p.rates}}}
+ try{const raw=localStorage.getItem(STORE_KEY);if(!raw)return structuredClone(DEFAULT_STATE);const p=JSON.parse(raw);if(!p||!Array.isArray(p.rows)||!p.rates||!Array.isArray(p.buyers))throw new Error('सहेजे गए बही-खाते का प्रारूप अमान्य है।');return {...DEFAULT_STATE,...p,transactions:Array.isArray(p.transactions)?p.transactions:[],rates:{...DEFAULT_STATE.rates,...p.rates}}}
  catch(err){console.error(err);return structuredClone(DEFAULT_STATE)}
 }
 function RadioChoices({value,onChange,options,name}){
@@ -20,52 +20,52 @@ function App(){
  const [store,setStore]=useState(readStore),[rows,R]=useState(store.rows),[rates,T]=useState(store.rates),[buyers,B]=useState(store.buyers),
  [tab,V]=useState('Sales'),[month,M]=useState(today().slice(0,7)),[error,E]=useState(''),[notice,N]=useState(''),
  [form,F]=useState(blankForm(store.rates)),[edit,X]=useState(null),[txForm,TF]=useState(blankTransaction()),[txEdit,TX]=useState(null);
- function report(err){E(String(err?.message||err||'Unable to complete this operation.'));N('')}
+ function report(err){E(String(err?.message||err||'यह कार्य पूरा नहीं हो सका।'));N('')}
  function success(s){N(s);E('')}
  function persist(next){
-  try{localStorage.setItem(STORE_KEY,JSON.stringify(next))}catch(err){report('Browser storage is full or unavailable. Download a backup and free storage space.');return false}
+  try{localStorage.setItem(STORE_KEY,JSON.stringify(next))}catch(err){report('ब्राउज़र में संग्रहण स्थान उपलब्ध नहीं है। बैकअप लेकर कुछ स्थान खाली करें।');return false}
   setStore(next);R(next.rows);T(next.rates);B(next.buyers);return true;
  }
  function exportBackup(){
   const blob=new Blob([JSON.stringify({schema:2,exportedAt:new Date().toISOString(),...store},null,2)],{type:'application/json'});
-  const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='kamdhenu-backup-'+today()+'.json';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);success('Backup downloaded.');
+  const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='kamdhenu-backup-'+today()+'.json';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);success('बैकअप डाउनलोड हो गया।');
  }
  function importBackup(e){
   const file=e.target.files?.[0];if(!file)return;const reader=new FileReader();
-  reader.onload=()=>{try{const d=JSON.parse(String(reader.result));if(!d||!Array.isArray(d.rows)||!d.rates||!Array.isArray(d.buyers))throw new Error('This file is not a valid Kamdhenu backup.');const next={rows:d.rows,transactions:Array.isArray(d.transactions)?d.transactions:[],rates:{cow_rate:Number(d.rates.cow_rate)||0,buffalo_rate:Number(d.rates.buffalo_rate)||0},buyers:d.buyers.map(String)};if(window.confirm('Replace this browser ledger with the selected backup?')&&persist(next))success('Backup restored.')}catch(err){report(err)}finally{e.target.value=''}};reader.onerror=()=>report('Backup file could not be read.');reader.readAsText(file);
+  reader.onload=()=>{try{const d=JSON.parse(String(reader.result));if(!d||!Array.isArray(d.rows)||!d.rates||!Array.isArray(d.buyers))throw new Error('यह कामधेनु का वैध बैकअप नहीं है।');const next={rows:d.rows,transactions:Array.isArray(d.transactions)?d.transactions:[],rates:{cow_rate:Number(d.rates.cow_rate)||0,buffalo_rate:Number(d.rates.buffalo_rate)||0},buyers:d.buyers.map(String)};if(window.confirm('Replace this browser ledger with the selected backup?')&&persist(next))success('बैकअप पुनर्स्थापित हो गया।')}catch(err){report(err)}finally{e.target.value=''}};reader.onerror=()=>report('बैकअप फ़ाइल पढ़ी नहीं जा सकी।');reader.readAsText(file);
  }
  function saveSale(e){
   e.preventDefault();const q=Number(form.quantity),rate=Number(form.rate);
-  if(!form.sale_date||!form.buyer.trim()||!String(form.quantity).trim()||!String(form.rate).trim()||!Number.isFinite(q)||q<=0||!Number.isFinite(rate)||rate<0)return report('Enter a date, buyer, positive quantity and valid rate.');
+  if(!form.sale_date||!form.buyer.trim()||!String(form.quantity).trim()||!String(form.rate).trim()||!Number.isFinite(q)||q<=0||!Number.isFinite(rate)||rate<0)return report('दिनांक, खरीदार, शून्य से अधिक मात्रा और वैध दर दर्ज करें।');
   const payload={sale_date:form.sale_date,buyer:form.buyer.trim(),milk_type:form.milk_type,quantity:q,rate,amount:Math.round(q*rate*100)/100,remarks:form.remarks.trim()||null,updated_at:new Date().toISOString()};
   const next={...store,rows:edit?store.rows.map(x=>x.id===edit?{...x,...payload}:x):[{...payload,id:crypto.randomUUID(),created_at:new Date().toISOString()},...store.rows]};
-  if(persist(next)){X(null);F(blankForm(next.rates));success(edit?'Sale updated.':'Sale recorded.')}
+  if(persist(next)){X(null);F(blankForm(next.rates));success(edit?'दूध प्रविष्टि अपडेट हुई।':'दूध दर्ज हो गया।')}
  }
- function removeSale(id){if(window.confirm('क्या यह दूध प्रविष्टि हटाएँ?')&&persist({...store,rows:store.rows.filter(x=>x.id!==id)}))success('Sale deleted.')}
+ function removeSale(id){if(window.confirm('क्या यह दूध प्रविष्टि हटाएँ?')&&persist({...store,rows:store.rows.filter(x=>x.id!==id)}))success('दूध प्रविष्टि हटा दी गई।')}
  function beginEdit(e){X(e.id);F({sale_date:e.sale_date,buyer:e.buyer,milk_type:e.milk_type,quantity:String(e.quantity),rate:String(e.rate),remarks:e.remarks||''});V('Sales')}
  function saveTransaction(e){
   e.preventDefault();const amount=Number(txForm.amount);
-  if(!txForm.date||!String(txForm.amount).trim()||!Number.isFinite(amount)||amount<=0)return report('Enter a valid date and amount greater than zero.');
-  if(txForm.kind==='expense'&&!txForm.category)return report('Select an expenditure category.');
+  if(!txForm.date||!String(txForm.amount).trim()||!Number.isFinite(amount)||amount<=0)return report('वैध दिनांक और शून्य से अधिक राशि दर्ज करें।');
+  if(txForm.kind==='expense'&&!txForm.category)return report('खर्च का मद चुनें।');
   const payload={...txForm,amount,party:txForm.party.trim(),remarks:txForm.remarks.trim(),updated_at:new Date().toISOString()};
   const next={...store,transactions:txEdit?store.transactions.map(x=>x.id===txEdit?{...x,...payload}:x):[{...payload,id:crypto.randomUUID(),created_at:new Date().toISOString()},...store.transactions]};
-  if(persist(next)){TX(null);TF(blankTransaction());success(txEdit?'Transaction updated.':'Transaction recorded.')}
+  if(persist(next)){TX(null);TF(blankTransaction());success(txEdit?'लेन-देन अपडेट हुआ।':'लेन-देन दर्ज हो गया।')}
  }
  function beginTxEdit(t){TX(t.id);TF({...t,amount:String(t.amount)});V('Transactions')}
- function removeTx(id){if(window.confirm('क्या यह लेन-देन हटाएँ?')&&persist({...store,transactions:store.transactions.filter(x=>x.id!==id)}))success('Transaction deleted.')}
+ function removeTx(id){if(window.confirm('क्या यह लेन-देन हटाएँ?')&&persist({...store,transactions:store.transactions.filter(x=>x.id!==id)}))success('लेन-देन हटा दिया गया।')}
  function saveRates(){
   const c=Number(rates.cow_rate),b=Number(rates.buffalo_rate);
-  if(!String(rates.cow_rate).trim()||!String(rates.buffalo_rate).trim()||!Number.isFinite(c)||!Number.isFinite(b)||c<0||b<0)return report('Enter valid non-negative rates.');
-  if(persist({...store,rates:{cow_rate:c,buffalo_rate:b}}))success('Rates saved.');
+  if(!String(rates.cow_rate).trim()||!String(rates.buffalo_rate).trim()||!Number.isFinite(c)||!Number.isFinite(b)||c<0||b<0)return report('शून्य या उससे अधिक की वैध दर दर्ज करें।');
+  if(persist({...store,rates:{cow_rate:c,buffalo_rate:b}}))success('दूध की दरें सुरक्षित हुईं।');
  }
- function saveBuyers(){const clean=[...new Set(buyers.map(x=>x.trim()).filter(Boolean))];if(!clean.length)return report('At least one buyer is required.');if(persist({...store,buyers:clean}))success('Buyers saved.')}
+ function saveBuyers(){const clean=[...new Set(buyers.map(x=>x.trim()).filter(Boolean))];if(!clean.length)return report('कम-से-कम एक खरीदार का नाम आवश्यक है।');if(persist({...store,buyers:clean}))success('खरीदारों की सूची सुरक्षित हुई।')}
  function exportCsv(){
   const data=rows.filter(x=>x.sale_date.startsWith(month)),lines=[['Date','Buyer','Milk','Litres','Rate','Amount','Remarks'],...data.map(x=>[x.sale_date,x.buyer,x.milk_type,x.quantity,x.rate,x.amount,x.remarks||''])];
   const csv=lines.map(row=>row.map(x=>{let v=String(x??'');if(/^[\t\r ]*[=+@-]/.test(v))v="'"+v;return '"'+v.replaceAll('"','""')+'"'}).join(',')).join('\r\n');
   const url=URL.createObjectURL(new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'})),a=document.createElement('a');a.href=url;a.download='kamdhenu-sales-'+month+'.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
  }
  const filtered=rows.filter(x=>x.sale_date.startsWith(month)),txFiltered=store.transactions.filter(x=>x.date.startsWith(month));
- const monthEnd=month===today().slice(0,7)?today():month+'-31';
+ const monthEnd=month===today().slice(0,7)?today():month+'-'+new Date(Number(month.slice(0,4)),Number(month.slice(5,7)),0).getDate();
  const upToDateRows=rows.filter(x=>x.sale_date.startsWith(month)&&x.sale_date<=monthEnd);
  const upToDateTx=store.transactions.filter(x=>x.date.startsWith(month)&&x.date<=monthEnd);
  const total=xs=>xs.reduce((a,x)=>a+Number(x.amount||0),0),qty=xs=>xs.reduce((a,x)=>a+Number(x.quantity||0),0);
