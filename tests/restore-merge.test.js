@@ -138,3 +138,18 @@ test('normalizes transaction records while excluding backup-only fields', () => 
     },
   );
 });
+
+test('deduplicates mixed ID-bearing and legacy copies regardless of backup order', () => {
+  const idless = milk();
+  const identified = { id: 'milk-stable-id', ...milk() };
+  const expected = [{ id: 'milk-stable-id', record: milk() }];
+
+  assert.deepEqual(
+    planRestoreMerge([idless, identified], [], normalizeMilkRecord),
+    expected,
+  );
+  assert.deepEqual(
+    planRestoreMerge([identified, idless], [], normalizeMilkRecord),
+    expected,
+  );
+});
