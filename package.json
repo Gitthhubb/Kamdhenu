@@ -10,15 +10,16 @@
     "check": "vite build"
   },
   "dependencies": {
+    "@firebase/app": "^0.10.18",
+    "@firebase/auth": "^1.10.7",
+    "@firebase/firestore": "^4.7.17",
+    "@react-oauth/google": "^0.12.2",
+    "firebase": "^11.10.0",
     "react": "18.3.1",
-    "react-dom": "18.3.1",
-    "@supabase/supabase-js": "2.119.0"
+    "react-dom": "18.3.1"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "4.3.4",
     "vite": "6.4.6"
-  },
-  "engines": {
-    "node": ">=22"
   }
 }
