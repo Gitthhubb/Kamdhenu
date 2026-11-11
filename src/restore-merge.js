@@ -33,21 +33,34 @@ export function planRestoreMerge(incoming = [], existing = [], normalize) {
     throw new TypeError('A record normalizer is required.');
   }
 
+  const prepared = incoming.map(item => ({
+    item,
+    record: normalize(item),
+    sourceId: isSafeDocumentId(item?.id) ? item.id : null,
+  }));
   const seenIds = new Set(existing.map(item => item?.id).filter(isSafeDocumentId));
+  const sourceIds = new Set(seenIds);
   const seenFingerprints = new Set(
     existing.map(item => JSON.stringify(normalize(item))),
   );
-  const additions = [];
 
-  for (const item of incoming) {
-    const record = normalize(item);
-    const sourceId = isSafeDocumentId(item?.id) ? item.id : null;
+  // Pre-register identified incoming rows so an ID-less legacy copy is
+  // skipped regardless of which representation appears first in the backup.
+  for (const candidate of prepared) {
+    if (candidate.sourceId && !sourceIds.has(candidate.sourceId)) {
+      sourceIds.add(candidate.sourceId);
+      seenFingerprints.add(JSON.stringify(candidate.record));
+    }
+  }
+
+  const additions = [];
+  for (const candidate of prepared) {
+    const { record, sourceId } = candidate;
 
     if (sourceId) {
       if (seenIds.has(sourceId)) continue;
       seenIds.add(sourceId);
       additions.push({ id: sourceId, record });
-      seenFingerprints.add(JSON.stringify(record));
       continue;
     }
 
