@@ -1,7 +1,16 @@
-const CACHE_NAME='kamdhenu-pwa-v1';
+const CACHE_NAME='kamdhenu-pwa-v2';
 const CORE_ASSETS=['/','/manifest.webmanifest','/icon.svg','/icon-192.png','/icon-512.png'];
 self.addEventListener('install',event=>{
- event.waitUntil(caches.open(CACHE_NAME).then(cache=>cache.addAll(CORE_ASSETS)));
+ event.waitUntil((async()=>{
+  const cache=await caches.open(CACHE_NAME);
+  await cache.addAll(CORE_ASSETS);
+  const index=await cache.match('/');
+  if(index){
+   const html=await index.text();
+   const assets=Array.from(html.matchAll(/(?:src|href)="([^"]+\.(?:js|css))"/g),match=>match[1]);
+   if(assets.length)await cache.addAll(assets);
+  }
+ })());
  self.skipWaiting();
 });
 self.addEventListener('activate',event=>{
