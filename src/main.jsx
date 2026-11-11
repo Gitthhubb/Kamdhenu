@@ -40,7 +40,7 @@ function App(){
  const [store,setStore]=useState(initial);
  const [tab,setTab]=useState('Milk');
  const [month,setMonth]=useState(today().slice(0,7));
- const [periodPage,setPeriodPage]=useState(Math.ceil(Number(today().slice(8,10))/10));
+ const [periodPage,setPeriodPage]=useState(Math.min(3,Math.ceil(Number(today().slice(8,10))/10)));
  const [error,setError]=useState('');
  const [notice,setNotice]=useState('');
  const [form,setForm]=useState(()=>blankForm(initial.rates));
@@ -72,11 +72,21 @@ function App(){
   }catch(err){report('ऐप इंस्टॉल करने का अनुरोध पूरा नहीं हुआ।')}
   finally{setInstallPrompt(null)}
  }
+ function selectPeriodPage(page,targetMonth=month){
+  const y=Number(targetMonth.slice(0,4)),m=Number(targetMonth.slice(5,7));
+  const days=new Date(y,m,0).getDate(),start=(page-1)*10+1,end=Math.min(page*10,days);
+  const now=today(),nowDay=Number(now.slice(8,10));
+  const selectedDate=targetMonth===now.slice(0,7)&&nowDay>=start&&nowDay<=end?now:targetMonth+'-'+String(start).padStart(2,'0');
+  setPeriodPage(page);
+  setForm(current=>({...current,sale_date:selectedDate}));
+  setTxForm(current=>({...current,date:selectedDate}));
+ }
  function changeMonth(value){
   if(!value)return;
-  setMonth(value);
   const current=today().slice(0,7);
-  setPeriodPage(value===current?Math.ceil(Number(today().slice(8,10))/10):value<current?3:1);
+  const page=value===current?Math.min(3,Math.ceil(Number(today().slice(8,10))/10)):value<current?3:1;
+  setMonth(value);
+  selectPeriodPage(page,value);
  }
  function exportBackup(){
   const blob=new Blob([JSON.stringify({schema:4,exportedAt:new Date().toISOString(),...store},null,2)],{type:'application/json'});
@@ -99,6 +109,7 @@ function App(){
  function saveMilk(e){
   e.preventDefault();
   const quantity=Number(form.quantity),rate=Number(form.rate),milkman=form.buyer.trim();
+  if(form.sale_date<periodStart||form.sale_date>periodEnd)return report('दिनांक चुने हुए पृष्ठ की अवधि में होनी चाहिए।');
   if(!form.sale_date||!milkman||!String(form.quantity).trim()||!String(form.rate).trim()||!Number.isFinite(quantity)||quantity<=0||!Number.isFinite(rate)||rate<0)return report('दिनांक, दूधवाले का नाम, शून्य से अधिक मात्रा और वैध दर दर्ज करें।');
   const now=new Date().toISOString();
   const record={sale_date:form.sale_date,shift:form.shift||'morning',buyer:milkman,milk_type:form.milk_type,quantity,rate,amount:Math.round(quantity*rate*100)/100,remarks:form.remarks.trim()||null,id:crypto.randomUUID(),created_at:now,updated_at:now};
@@ -113,6 +124,7 @@ function App(){
  function saveTransaction(e){
   e.preventDefault();
   const amount=Number(txForm.amount);
+  if(txForm.date<periodStart||txForm.date>periodEnd)return report('दिनांक चुने हुए पृष्ठ की अवधि में होनी चाहिए।');
   if(!txForm.date||!String(txForm.amount).trim()||!Number.isFinite(amount)||amount<=0)return report('वैध दिनांक और शून्य से अधिक राशि दर्ज करें।');
   if(txForm.kind==='expense'&&!txForm.category)return report('खर्च का मद चुनें।');
   const now=new Date().toISOString();
@@ -183,7 +195,7 @@ function App(){
    <section className="period-panel" aria-label="मासिक पृष्ठ चयन">
     <div className="period-heading"><b>{periodLabel}</b><small>लगभग 10 दिन · करीब 20 प्रविष्टियाँ प्रति पृष्ठ</small></div>
     <div className="period-buttons">
-     {[1,2,3].map(page=><button key={page} className={periodPage===page?'selected':''} aria-current={periodPage===page?'page':undefined} onClick={()=>setPeriodPage(page)}>
+     {[1,2,3].map(page=><button key={page} className={periodPage===page?'selected':''} aria-current={periodPage===page?'page':undefined} onClick={()=>selectPeriodPage(page)}>
       <span>{page}</span><small>{page===1?'1–10':page===2?'11–20':'21–'+daysInMonth}</small>
      </button>)}
     </div>
