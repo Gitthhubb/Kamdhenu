@@ -9,7 +9,7 @@ Live site: https://mymilk.onrender.com
 - **लेन-देन:** Received, remained (outstanding), advance, and expenses. Expense categories: paddy stalk, cattle feed, khali, chokar, wheat straw, and others.
 - Hero summary displays month-to-date milk quantity and net cash.
 
-Net cash is calculated as received minus advances minus expenses. Remained is tracked separately as an outstanding amount and is not treated as cash received.
+Net amount preserves the existing calculation: milk sales + received amounts − advances − expenses. Remained is tracked separately as an outstanding amount and is not added again to cash received.
 
 ## Storage model
 The app is Supabase-free and stores records in this browser's Local Storage. Records stay in the same browser profile on the same device. They are not shared with other users, browsers, or devices. Clearing site data or losing the device can erase the ledger.
