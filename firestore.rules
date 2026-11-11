@@ -1,0 +1,47 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+    function validEntry(data) {
+      return data.keys().hasOnly([
+        'date', 'shift', 'milkman', 'milkType', 'quantity', 'rate',
+        'amount', 'remarks', 'createdAt'
+      ])
+      && data.date is string
+      && data.shift in ['morning', 'evening']
+      && data.milkman is string
+      && data.milkType in ['cow', 'buffalo']
+      && data.quantity is number && data.quantity > 0
+      && data.rate is number && data.rate >= 0
+      && data.amount is number && data.amount >= 0
+      && data.remarks is string;
+    }
+    function validTransaction(data) {
+      return data.keys().hasOnly([
+        'date', 'kind', 'amount', 'party', 'category', 'remarks', 'createdAt'
+      ])
+      && data.date is string
+      && data.kind in ['received', 'remained', 'advance', 'expense']
+      && data.amount is number && data.amount > 0
+      && data.party is string && data.category is string
+      && data.remarks is string;
+    }
+    match /users/{userId} {
+      allow read, create, update, delete: if signedIn() && request.auth.uid == userId;
+      match /milk/{entryId} {
+        allow read: if signedIn() && request.auth.uid == userId;
+        allow create: if signedIn() && request.auth.uid == userId && validEntry(request.resource.data);
+        allow delete: if signedIn() && request.auth.uid == userId;
+        allow update: if false;
+      }
+      match /transactions/{entryId} {
+        allow read: if signedIn() && request.auth.uid == userId;
+        allow create: if signedIn() && request.auth.uid == userId && validTransaction(request.resource.data);
+        allow delete: if signedIn() && request.auth.uid == userId;
+        allow update: if false;
+      }
+    }
+  }
+}
