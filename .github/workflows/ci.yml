@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [main]
   push:
-    branches: [main, fix/app-hardening, feat/public-auth-render-data]
+    branches: [main, fix/app-hardening, feat/public-auth-render-data, feature/firebase-ledger]
 
 jobs:
   build:
