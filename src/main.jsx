@@ -6,10 +6,11 @@ import'./style.css';
 const today=()=>{const d=new Date();return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-')};
 const money=n=>new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR'}).format(Number(n)||0);
 const blankForm=(rates=null)=>({sale_date:today(),buyer:'Milkman 1',milk_type:'cow',quantity:'',rate:rates?String(rates.cow_rate??0):'',remarks:''});
-const messageFor=(message)=>{
+const messageFor=message=>{
   if(!message)return '';
-  if(/provider is not enabled/i.test(message))return 'Google sign-in is not enabled yet. Enable Google in Supabase Authentication → Providers and add the Google OAuth Client ID and Secret.';
-  if(/invalid login credentials/i.test(message))return 'Google sign-in could not be completed. Check that the correct Google account is selected.';
+  if(/provider is not enabled/i.test(message))return 'Google sign-in is not enabled in Supabase yet. Email sign-in remains available.';
+  if(/invalid login credentials/i.test(message))return 'The email or password is incorrect.';
+  if(/email not confirmed/i.test(message))return 'Verify your email using the link sent to your inbox before signing in.';
   return message;
 };
 
@@ -17,9 +18,9 @@ function App(){
   const[user,U]=useState(null),[profile,P]=useState(null),[rows,R]=useState([]),
     [rates,T]=useState({cow_rate:0,buffalo_rate:0}),[buyers,B]=useState(['Milkman 1','Milkman 2','Milkman 3']),
     [allowed,A]=useState([]),[tab,V]=useState('Sales'),[month,M]=useState(today().slice(0,7)),
-    [error,E]=useState(''),[notice,N]=useState(''),[email,Q]=useState(''),
-    [form,F]=useState(blankForm()),[edit,X]=useState(null),[loading,L]=useState(false),[profileLoading,PL]=useState(false),[profileRetry,PR]=useState(0),
-    [busy,Z]=useState(false);
+    [error,E]=useState(''),[notice,N]=useState(''),[email,Q]=useState(''),[password,W]=useState(''),
+    [authMode,AM]=useState('signin'),[form,F]=useState(blankForm()),[edit,X]=useState(null),
+    [loading,L]=useState(false),[profileLoading,PL]=useState(false),[profileRetry,PR]=useState(0),[busy,Z]=useState(false);
 
   function report(err){E(messageFor(err?.message||err||''));N('');}
   function success(text){N(text);E('');}
@@ -67,12 +68,36 @@ function App(){
   }
   useEffect(()=>{if(profile?.active)load()},[profile]);
 
-  async function signIn(){
+  async function signInGoogle(){
     E('');N('');Z(true);
     try{
       const{error}=await supabase.auth.signInWithOAuth({provider:'google',options:{redirectTo:window.location.origin}});
       if(error)report(error);
     }catch(err){report(err)}finally{Z(false)}
+  }
+  async function signInEmail(e){
+    e.preventDefault();E('');N('');
+    if(!email.trim()||!password)return report('Enter your email address and password.');
+    Z(true);
+    try{
+      if(authMode==='signup'){
+        const{data,error}=await supabase.auth.signUp({email:email.trim().toLowerCase(),password,options:{emailRedirectTo:window.location.origin}});
+        if(error)throw error;
+        if(data.session)success('Account created and signed in.');
+        else success('Registration received. Check your inbox and verify your email before signing in.');
+      }else{
+        const{error}=await supabase.auth.signInWithPassword({email:email.trim().toLowerCase(),password});
+        if(error)throw error;
+      }
+    }catch(err){report(err)}finally{Z(false)}
+  }
+  async function resetPassword(){
+    E('');N('');
+    if(!email.trim())return report('Enter your email address first.');
+    Z(true);
+    const{error}=await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(),{redirectTo:window.location.origin});
+    Z(false);
+    if(error)report(error);else success('Password reset link sent. Check your inbox.');
   }
   async function save(e){
     e.preventDefault();E('');N('');
@@ -99,8 +124,8 @@ function App(){
   function exportCsv(){
     const data=rows.filter(x=>x.sale_date.startsWith(month));
     const lines=[['Date','Buyer','Milk','Litres','Rate','Amount','Remarks'],...data.map(x=>[x.sale_date,x.buyer,x.milk_type,x.quantity,x.rate,x.amount,x.remarks||''])];
-    const csv=lines.map(row=>row.map(x=>{let value=String(x??'');if(/^[\t\r ]*[=+@-]/.test(value))value="'"+value;return '"'+value.replaceAll('"','""')+'"'}).join(',')).join('\r\n');
-    const url=URL.createObjectURL(new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'}));
+    const csv=lines.map(row=>row.map(x=>{let value=String(x??'');if(/^[\\t\\r ]*[=+@-]/.test(value))value="'"+value;return '"'+value.replaceAll('"','""')+'"'}).join(',')).join('\\r\\n');
+    const url=URL.createObjectURL(new Blob(['\\ufeff'+csv],{type:'text/csv;charset=utf-8'}));
     const a=document.createElement('a');a.href=url;a.download=`kamdhenu-${month}.csv`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
   }
   async function saveRates(){
@@ -131,11 +156,24 @@ function App(){
     if(error)report(error);else{success(a.active?'Access revoked.':'Access restored.');await load()}
   }
 
-  if(!configured)return <main className="login"><h1>कामधेनु Point</h1><p>Supabase configuration is missing. Check the Render environment variables.</p></main>;
-  if(!user)return <main className="login"><h1>कामधेनु Point</h1><p>दूध बिक्री और हिसाब-किताब</p><button disabled={busy} onClick={signIn}>{busy?'Connecting…':'Continue with Google'}</button>{error&&<p className="error" role="alert">{error}</p>}</main>;
+  if(!configured)return <main className="login"><h1>कामधेनु Point</h1><p>Authentication configuration is missing. Check the site environment configuration.</p></main>;
+  if(!user)return <main className="login">
+    <h1>कामधेनु Point</h1><p>दूध बिक्री और हिसाब-किताब</p>
+    <button disabled={busy} onClick={signInGoogle}>{busy?'Connecting…':'Continue with Google'}</button>
+    <div className="auth-divider">or use email</div>
+    <div className="auth-tabs"><button className={authMode==='signin'?'active':''} onClick={()=>{AM('signin');E('');N('')}}>Sign in</button><button className={authMode==='signup'?'active':''} onClick={()=>{AM('signup');E('');N('')}}>Create account</button></div>
+    <form className="auth-form" onSubmit={signInEmail}>
+      <label>Email address<input type="email" autoComplete="email" required value={email} onChange={e=>Q(e.target.value)} placeholder="you@example.com"/></label>
+      <label>Password<input type="password" minLength="8" autoComplete={authMode==='signup'?'new-password':'current-password'} required value={password} onChange={e=>W(e.target.value)} placeholder="At least 8 characters"/></label>
+      <button disabled={busy}>{busy?'Please wait…':authMode==='signup'?'Create account':'Sign in with email'}</button>
+    </form>
+    {authMode==='signin'&&<button className="link-button" disabled={busy} onClick={resetPassword}>Forgot password?</button>}
+    {error&&<p className="error" role="alert">{error}</p>}{notice&&<p className="notice" role="status">{notice}</p>}
+    <p className="auth-note">Anyone may register. Email accounts must verify their address. All new accounts receive ordinary-user access.</p>
+  </main>;
   if(profileLoading)return <main className="login"><h1>कामधेनु Point</h1><p>Checking account access…</p>{error&&<p className="error" role="alert">{error}</p>}</main>;
   if(!profile)return <main className="login"><h1>कामधेनु Point</h1><p>Account profile could not be loaded.</p>{error&&<p className="error" role="alert">{error}</p>}<button onClick={()=>PR(n=>n+1)}>Retry</button><button className="secondary" onClick={()=>supabase.auth.signOut()}>Sign out</button></main>;
-  if(!profile.active)return <main className="login"><h1>Access pending</h1><p>{user.email} is not authorised yet.</p><p>Ask the administrator to authorise this exact Google email address.</p><button onClick={()=>supabase.auth.signOut()}>Sign out</button>{error&&<p className="error" role="alert">{error}</p>}</main>;
+  if(!profile.active)return <main className="login"><h1>Account inactive</h1><p>{user.email} is not permitted to use this register.</p><button onClick={()=>supabase.auth.signOut()}>Sign out</button>{error&&<p className="error" role="alert">{error}</p>}</main>;
 
   const admin=profile.role==='admin',filtered=rows.filter(x=>x.sale_date.startsWith(month));
   const total=xs=>xs.reduce((a,x)=>a+Number(x.amount||0),0),qty=xs=>xs.reduce((a,x)=>a+Number(x.quantity||0),0);
@@ -152,8 +190,8 @@ function App(){
       </>}
       {tab==='Ledger'&&<><label className="month-picker">Month <input type="month" value={month} onChange={e=>M(e.target.value)}/></label><button onClick={exportCsv}>Export CSV</button><h2>{qty(filtered).toFixed(2)} litres · {money(total(filtered))}</h2><Rows rows={filtered} admin={admin} edit={beginEdit} remove={remove}/></>}
       {tab==='Rates'&&<section className="panel"><h2>Rates per litre</h2>{['cow_rate','buffalo_rate'].map(k=><label key={k}>{k==='cow_rate'?'Cow':'Buffalo'} ₹ <input type="number" min="0" step=".01" disabled={!admin} value={rates[k]??0} onChange={e=>T({...rates,[k]:e.target.value})}/></label>)}{admin&&<button disabled={busy} onClick={saveRates}>Save rates</button>}<p>Historical entries retain the rate applied when they were recorded.</p></section>}
-      {tab==='Buyers'&&<section className="panel"><h2>Buyers</h2><textarea disabled={!admin} rows="6" value={buyers.join('\n')} onChange={e=>B(e.target.value.split('\n'))}/>{admin&&<button disabled={busy} onClick={saveBuyers}>Save buyers</button>}</section>}
-      {tab==='Access'&&admin&&<section className="panel"><h2>Authorised Google accounts</h2><form onSubmit={addAccess}><input type="email" required placeholder="name@gmail.com" value={email} onChange={e=>Q(e.target.value)}/><button disabled={busy}>Authorise account</button></form>{allowed.map(a=><p className="access-row" key={a.email}>{a.email} · {a.active?'Active':'Revoked'} <button disabled={busy||a.email.toLowerCase()===user.email.toLowerCase()||a.role==='admin'} onClick={()=>toggleAccess(a)}>{a.active?'Revoke':'Restore'}</button></p>)}</section>}
+      {tab==='Buyers'&&<section className="panel"><h2>Buyers</h2><textarea disabled={!admin} rows="6" value={buyers.join('\\n')} onChange={e=>B(e.target.value.split('\\n'))}/>{admin&&<button disabled={busy} onClick={saveBuyers}>Save buyers</button>}</section>}
+      {tab==='Access'&&admin&&<section className="panel"><h2>Registered accounts</h2><p>New users may register themselves with Google or verified email. This screen controls account suspension only.</p><form onSubmit={addAccess}><input type="email" required placeholder="name@example.com" value={email} onChange={e=>Q(e.target.value)}/><button disabled={busy}>Authorise account</button></form>{allowed.map(a=><p className="access-row" key={a.email}>{a.email} · {a.active?'Active':'Revoked'} <button disabled={busy||a.email.toLowerCase()===user.email.toLowerCase()||a.role==='admin'} onClick={()=>toggleAccess(a)}>{a.active?'Revoke':'Restore'}</button></p>)}</section>}
     </main>
   </div>;
 }
