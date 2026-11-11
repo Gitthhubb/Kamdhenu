@@ -115,7 +115,7 @@ function LedgerApp({user}){
  }
  function report(err){setError(String(err?.message||err||'यह कार्य पूरा नहीं हो सका।'));setNotice('')}
  function success(msg){setNotice(msg);setError('')}
- async async function persist(next){
+ async function persist(next){
   try{await setDoc(doc(db,'users',user.uid),{rates:next.rates,buyers:next.buyers,settings:next.settings,updatedAt:serverTimestamp()},{merge:true});setStore(next);return true}
   catch(err){report(err);return false}
  }
