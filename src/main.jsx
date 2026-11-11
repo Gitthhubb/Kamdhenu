@@ -76,10 +76,10 @@ function App(){
     <h2>Recent sales</h2><SalesRows rows={rows.slice(0,8)} edit={beginEdit} remove={removeSale}/>
    </>}
    {tab==='Transactions'&&<><label className="month-picker">Month<input type="month" value={month} onChange={e=>M(e.target.value)}/></label>
-    <section className="stats four"><article><small>Received</small><h2>{money(total(received))}</h2></article><article><small>Advance</small><h2>{money(total(advances))}</h2></article><article><small>Expenditure</small><h2>{money(total(expenses))}</h2></article><article><small>Net cash</small><h2>{money(total(received)-total(advances)-total(expenses))}</h2></article></section>
+    <section className="stats four"><article><small>Received</small><h2>{money(total(received))}</h2></article><article><small>Advance paid</small><h2>{money(total(advances))}</h2></article><article><small>Expenditure</small><h2>{money(total(expenses))}</h2></article><article><small>Net cash</small><h2>{money(total(received)-total(advances)-total(expenses))}</h2></article></section>
     <h2>{txEdit?'Edit transaction':'Add transaction'}</h2><form className="entry-form" onSubmit={saveTransaction}>
      <label>Date<input className="date-input" type="date" value={txForm.date} onChange={e=>TF({...txForm,date:e.target.value})} required/></label>
-     <label>Transaction type<RadioChoices name="tx-kind" value={txForm.kind} onChange={v=>TF({...txForm,kind:v})} options={[{value:'received',label:'Received'},{value:'advance',label:'Advance'},{value:'expense',label:'Expenditure'}]}/></label>
+     <label>Transaction type<RadioChoices name="tx-kind" value={txForm.kind} onChange={v=>TF({...txForm,kind:v})} options={[{value:'received',label:'Received'},{value:'advance',label:'Advance paid'},{value:'expense',label:'Expenditure'}]}/></label>
      <label>Amount (₹)<input className="number-input" type="number" min="0.01" step=".01" inputMode="decimal" placeholder="0.00" value={txForm.amount} onChange={e=>TF({...txForm,amount:e.target.value})} required/></label>
      <label>Party / paid to / received from<input className="text-input" value={txForm.party} onChange={e=>TF({...txForm,party:e.target.value})} placeholder="Name (optional)"/></label>
      {txForm.kind==='expense'&&<label>Expenditure head<RadioChoices name="expense-category" value={txForm.category} onChange={v=>TF({...txForm,category:v})} options={[{value:'paddy_stalk',label:'धान का पुआल'},{value:'cattle_feed',label:'पशु आहार'},{value:'khali',label:'खली'},{value:'chokar',label:'चोकर'}]}/></label>}
@@ -109,7 +109,7 @@ function SaleForm({form,setForm,buyers,rates,save,editing,cancel}){
 }
 function SalesRows({rows,edit,remove}){return <div className="record-list">{rows.map(e=><article className="record" key={e.id}><div><b>{e.buyer}</b><small>{e.sale_date} · {e.milk_type==='cow'?'Cow':'Buffalo'} · {e.quantity} L × {money(e.rate)}</small></div><strong>{money(e.amount)}</strong><div className="record-actions"><button onClick={()=>edit(e)}>Edit</button><button className="danger" onClick={()=>remove(e.id)}>Delete</button></div></article>)}{!rows.length&&<p className="empty">No sales recorded.</p>}</div>}
 function TransactionRows({rows,edit,remove}){
- const label=t=>t.kind==='received'?'Received':t.kind==='advance'?'Advance':'Expenditure',category={paddy_stalk:'धान का पुआल',cattle_feed:'पशु आहार',khali:'खली',chokar:'चोकर'};
+ const label=t=>t.kind==='received'?'Received':t.kind==='advance'?'Advance paid':'Expenditure',category={paddy_stalk:'धान का पुआल',cattle_feed:'पशु आहार',khali:'खली',chokar:'चोकर'};
  return <div className="record-list">{rows.map(t=><article className="record" key={t.id}><div><b>{label(t)} · {t.kind==='expense'?category[t.category]:t.party||'Unspecified party'}</b><small>{t.date}{t.remarks?' · '+t.remarks:''}</small></div><strong>{money(t.amount)}</strong><div className="record-actions"><button onClick={()=>edit(t)}>Edit</button><button className="danger" onClick={()=>remove(t.id)}>Delete</button></div></article>)}{!rows.length&&<p className="empty">No transactions recorded for this month.</p>}</div>
 }
 createRoot(document.getElementById('root')).render(<App/>);
