@@ -1,59 +1,51 @@
 # कामधेनु Point
 
-A private, mobile-first milk sales register for daily transactions with milkmen. Supports cow and buffalo rates, buyer records, monthly summaries, CSV export, and Google-account access control.
+A mobile-first milk-sales register for recording daily cow and buffalo milk transactions, maintaining a rate-aware ledger, and controlling access through Google accounts.
 
-## Stack
-- React + Vite
-- Supabase Auth (Google OAuth)
-- Supabase Postgres with Row Level Security
-- Render Static Site
+## Deployment
+- Website: https://mymilk.onrender.com
+- GitHub: https://github.com/Gitthhubb/Kamdhenu
+- Supabase project: `kamdhenu-point` (Mumbai, `ap-south-1`)
+- Supabase dashboard: https://supabase.com/dashboard/project/jcxdrtinbcegvupiisvz
 
-## Supabase project
-- Project: `kamdhenu-point`
-- Region: `ap-south-1` (Mumbai)
-- Project reference: `jcxdrtinbcegvupiisvz`
-- API URL: `https://jcxdrtinbcegvupiisvz.supabase.co`
+The browser uses only the Supabase publishable key. Never commit a service-role key, Google Client Secret, or Supabase secret key.
 
-The initial schema and RLS policies are deployed as migrations. The browser uses only the publishable API key. Never place a Supabase service-role key in this repository or in browser environment variables.
+## Google sign-in setup (required)
+Google authentication is configured in the Supabase dashboard, not in the React source.
 
-## Google sign-in configuration
-1. Open Supabase Dashboard > Authentication > Providers > Google:
-   `https://supabase.com/dashboard/project/jcxdrtinbcegvupiisvz/auth/providers`
-2. Create a Web OAuth client in Google Cloud Console and add the Supabase callback URI shown on that provider page to its authorised redirect URIs.
-3. Add the Google Client ID and Client Secret to the Supabase Google provider settings and enable the provider.
-4. In Supabase Authentication > URL Configuration, set the Site URL to the deployed Render URL and add the same URL to the redirect allow list.
+1. In Google Cloud Console, create an OAuth client of type **Web application**.
+2. Add this **Authorised JavaScript origin**:
+   `https://mymilk.onrender.com`
+3. Add this **Authorised redirect URI**:
+   `https://jcxdrtinbcegvupiisvz.supabase.co/auth/v1/callback`
+4. In [Supabase → Authentication → Providers → Google](https://supabase.com/dashboard/project/jcxdrtinbcegvupiisvz/auth/providers), paste the Google Client ID and Client Secret and enable Google.
+5. In [Supabase → Authentication → URL Configuration](https://supabase.com/dashboard/project/jcxdrtinbcegvupiisvz/auth/url-configuration), set Site URL to `https://mymilk.onrender.com` and add that same URL to the redirect allow list.
 
-Google OAuth requires a Client ID and Client Secret belonging to the account owner. They are deliberately not embedded in source code.
+The OAuth Client Secret must be entered directly into Supabase. Do not send it in chat or commit it to GitHub. Until these steps are completed, the app will display a specific provider-configuration error.
 
-## Bootstrap the mother's administrator account
-1. Enable Google sign-in as above and deploy the site.
-2. Have the mother sign in once with her Google account. A profile is created inactive by default.
-3. In Supabase SQL Editor, run the following after replacing the email with her exact Google account email:
+## First administrator
+The designated administrator email is `upscpremcq@gmail.com`. After Google sign-in has been enabled, that account must complete its first sign-in so Supabase creates its profile. Then execute this in the Supabase SQL Editor:
 
 ```sql
 update public.profiles
 set role = 'admin', active = true
-where lower(email) = lower('MOTHERS_GOOGLE_EMAIL');
+where lower(email) = lower('upscpremcq@gmail.com');
 
 insert into public.allowed_emails (email, role, active)
-values ('MOTHERS_GOOGLE_EMAIL', 'admin', true)
+values ('upscpremcq@gmail.com', 'admin', true)
 on conflict (email) do update
 set role = 'admin', active = true;
 ```
 
-4. Sign out and sign in again. The mother's account is now the administrator.
-5. The administrator can authorise or revoke additional Google accounts in the Access tab by email. Those accounts must sign in with the exact same Google email address.
-
-The first account is never automatically made administrator. That avoids the usual public-URL account-takeover trick.
+Sign out and sign in again. The administrator can subsequently authorise or revoke other Google accounts through the Access tab. Never automatically grant administrator privileges to the first person to visit a public URL.
 
 ## Features
-- Record date, buyer, milk type, litres, rate, amount and optional remarks.
+- Record date, buyer, milk type, litres, rate, calculated amount and remarks.
 - Separate cow and buffalo rates.
-- Store the applied rate and amount on each transaction; changing current rates does not alter historical records.
-- Daily dashboard and monthly ledger.
-- Monthly CSV export.
-- Admin-only rate and buyer management, editing/deleting sales, and access control.
-- Authenticated users can add sales and view the ledger; database RLS enforces these permissions independently of the UI.
+- Preserve the rate and amount snapshot on each historical entry.
+- Daily dashboard, monthly ledger and CSV export.
+- Administrator-only rate and buyer maintenance, sales edit/delete and access management.
+- Active authenticated users can create entries and read the ledger; database Row Level Security remains the enforcement boundary.
 
 ## Local development
 ```bash
@@ -63,15 +55,13 @@ cp .env.example .env
 npm run dev
 ```
 
-## Render deployment
-- Service type: Static Site
-- Name: `mymilk`
-- Branch: `main`
+## Render
+Static Site settings:
+- Branch: `main` (or approved release branch)
 - Build command: `npm install && npm run build`
 - Publish directory: `dist`
-- Region: Singapore (static sites are globally served)
 - Environment variables:
   - `VITE_SUPABASE_URL=https://jcxdrtinbcegvupiisvz.supabase.co`
   - `VITE_SUPABASE_PUBLISHABLE_KEY=<publishable key>`
 
-The standard Render hostname is `https://mymilk.onrender.com`. Render does not issue the `mymilk.web.onrender.com` hostname format.
+Render's standard hostname is `https://mymilk.onrender.com`; it does not issue the requested `mymilk.web.onrender.com` hostname.
