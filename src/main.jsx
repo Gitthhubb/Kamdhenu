@@ -69,9 +69,10 @@ function App(){
 
   async function signIn(){
     E('');N('');Z(true);
-    const{error}=await supabase.auth.signInWithOAuth({provider:'google',options:{redirectTo:window.location.origin}});
-    Z(false);
-    if(error)report(error);
+    try{
+      const{error}=await supabase.auth.signInWithOAuth({provider:'google',options:{redirectTo:window.location.origin}});
+      if(error)report(error);
+    }catch(err){report(err)}finally{Z(false)}
   }
   async function save(e){
     e.preventDefault();E('');N('');
@@ -98,7 +99,7 @@ function App(){
   function exportCsv(){
     const data=rows.filter(x=>x.sale_date.startsWith(month));
     const lines=[['Date','Buyer','Milk','Litres','Rate','Amount','Remarks'],...data.map(x=>[x.sale_date,x.buyer,x.milk_type,x.quantity,x.rate,x.amount,x.remarks||''])];
-    const csv=lines.map(row=>row.map(x=>{let value=String(x??'');if(/^[\\t\\r ]*[=+@-]/.test(value))value="'"+value;return '"'+value.replaceAll('"','""')+'"'}).join(',')).join('\r\n');
+    const csv=lines.map(row=>row.map(x=>{let value=String(x??'');if(/^[\t\r ]*[=+@-]/.test(value))value="'"+value;return '"'+value.replaceAll('"','""')+'"'}).join(',')).join('\r\n');
     const url=URL.createObjectURL(new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'}));
     const a=document.createElement('a');a.href=url;a.download=`kamdhenu-${month}.csv`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
   }
