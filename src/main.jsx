@@ -233,7 +233,7 @@ function LedgerApp({user}){
    <label>भैंस के दूध की निश्चित दर (₹/लीटर)<input className="number-input" type="number" min=".01" step=".01" inputMode="decimal" value={personalSetup.buffaloRate} onChange={e=>setPersonalSetup({...personalSetup,buffaloRate:e.target.value})} placeholder="उदाहरण: 70" required/></label>
    <small>यह दर और दूधवाले का नाम माँ के मोड में नई प्रविष्टियों पर स्वतः लागू होंगे। पुरानी प्रविष्टियाँ अपरिवर्तित रहेंगी।</small>
    <button type="submit">सेटिंग सुरक्षित करें</button>
-  </form>
+  </form>}
   <section className="hero">
    <div className="hero-top"><span>मासिक सारांश</span><label className="hero-month"><input aria-label="माह चुनें" type="month" value={month} onChange={e=>changeMonth(e.target.value)}/></label></div>
    <div className="hero-metrics">
