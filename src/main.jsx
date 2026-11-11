@@ -3,7 +3,8 @@ import{createRoot}from'react-dom/client';
 import'./style.css';
 import{isFirebaseConfigured,auth,googleProvider,db}from'./firebase';
 import{onAuthStateChanged,signInWithPopup,signOut}from'firebase/auth';
-import{collection,doc,setDoc,addDoc,deleteDoc,query,orderBy,onSnapshot,serverTimestamp}from'firebase/firestore';
+import{normalizeMilkRecord,normalizeTransactionRecord,planRestoreMerge}from'./restore-merge';
+import{collection,doc,setDoc,addDoc,deleteDoc,getDocs,query,orderBy,onSnapshot,serverTimestamp}from'firebase/firestore';
 
 const today=()=>{const d=new Date();return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-')};
 const money=n=>'₹'+new Intl.NumberFormat('hi-IN',{maximumFractionDigits:2}).format(Number(n)||0);
@@ -158,15 +159,26 @@ function LedgerApp({user}){
  }
  async function restoreBackupData(d){
   if(!d||!Array.isArray(d.rows)||!Array.isArray(d.transactions)||!d.rates)throw new Error('यह कामधेनु का वैध बैकअप नहीं है।');
-  if(!window.confirm('क्या बैकअप की सभी प्रविष्टियाँ जोड़नी हैं? पहले से मौजूद रिकॉर्ड सुरक्षित रहेंगे।'))return;
-  for(const row of d.rows){
-   await addDoc(collection(db,'users',user.uid,'milk'),{date:row.sale_date,shift:row.shift||'morning',milkman:row.buyer,milkType:row.milk_type,quantity:Number(row.quantity),rate:Number(row.rate),amount:Number(row.amount),remarks:row.remarks||'',createdAt:serverTimestamp()});
+  if(!window.confirm('क्या बैकअप की केवल नई प्रविष्टियाँ जोड़नी हैं? मौजूदा प्रविष्टियाँ बदली या हटाई नहीं जाएँगी।'))return;
+  const milkCollection=collection(db,'users',user.uid,'milk');
+  const transactionCollection=collection(db,'users',user.uid,'transactions');
+  const [milkSnapshot,transactionSnapshot]=await Promise.all([getDocs(milkCollection),getDocs(transactionCollection)]);
+  const milkExisting=milkSnapshot.docs.map(snapshot=>({id:snapshot.id,...snapshot.data()}));
+  const transactionExisting=transactionSnapshot.docs.map(snapshot=>({id:snapshot.id,...snapshot.data()}));
+  const milkAdditions=planRestoreMerge(d.rows,milkExisting,normalizeMilkRecord);
+  const transactionAdditions=planRestoreMerge(d.transactions,transactionExisting,normalizeTransactionRecord);
+  for(const item of milkAdditions){
+   const payload={...item.record,createdAt:serverTimestamp()};
+   if(item.id)await setDoc(doc(milkCollection,item.id),payload);
+   else await addDoc(milkCollection,payload);
   }
-  for(const t of d.transactions){
-   await addDoc(collection(db,'users',user.uid,'transactions'),{date:t.date,kind:t.kind,amount:Number(t.amount),party:t.party||'',category:t.category||'',remarks:t.remarks||'',createdAt:serverTimestamp()});
+  for(const item of transactionAdditions){
+   const payload={...item.record,createdAt:serverTimestamp()};
+   if(item.id)await setDoc(doc(transactionCollection,item.id),payload);
+   else await addDoc(transactionCollection,payload);
   }
   await persist({...store,rates:{...store.rates,...d.rates},buyers:[...new Set([...store.buyers,...(d.buyers||[])])],settings:{...store.settings,...(d.settings||{})}});
-  success('बैकअप की प्रविष्टियाँ जोड़ दी गईं।');
+  success(`बैकअप से ${milkAdditions.length} दूध और ${transactionAdditions.length} लेन-देन की नई प्रविष्टियाँ जोड़ी गईं।`);
  }
  function importBackup(e){
   const file=e.target.files?.[0];if(!file)return;
