@@ -32,7 +32,7 @@ Each Google account gets its own `users/{uid}` document and two collections:
 The personal-mode settings live in the same user document.
 
 ## Record behaviour
-Entries cannot be edited. Each entry can be deleted individually after confirmation. Deletions are permanent; export a JSON or Drive backup before removing anything.
+Entries cannot be edited. Each entry can be deleted individually after confirmation. Deletions are permanent; export a JSON or Drive backup before removing anything. Restoring a backup merges only missing records. Reusing the same backup does not create duplicates; older records without IDs are matched by their normalized fields. Distinct records with different IDs are preserved even when their visible values match.
 
 The existing three date pages, cow/buffalo milk choices, expense categories and mother's personal mode remain.
 
