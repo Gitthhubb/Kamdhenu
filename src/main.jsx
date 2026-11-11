@@ -124,7 +124,8 @@ function App(){
     if(error)report(error);else{Q('');success('Account authorised.');await load()}
   }
   async function toggleAccess(a){
-    if(a.email.toLowerCase()===user.email.toLowerCase())return report('You cannot revoke the account currently administering this register.');\n    if(a.role==='admin')return report('Administrator access must be changed directly in Supabase, not through the user access list.');
+    if(a.email.toLowerCase()===user.email.toLowerCase())return report('You cannot revoke the account currently administering this register.');
+    if(a.role==='admin')return report('Administrator access must be changed directly in Supabase, not through the user access list.');
     Z(true);const{error}=await supabase.from('allowed_emails').update({active:!a.active}).eq('email',a.email);Z(false);
     if(error)report(error);else{success(a.active?'Access revoked.':'Access restored.');await load()}
   }
