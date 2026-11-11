@@ -25,7 +25,7 @@ export function normalizeTransactionRecord(row = {}) {
 }
 
 function isSafeDocumentId(id) {
-  return typeof id === 'string' && SAFE_DOCUMENT_ID.test(id);
+  return typeof id === 'string' && SAFE_DOCUMENT_ID.test(id) && !/^__.*__$/.test(id);
 }
 
 export function planRestoreMerge(incoming = [], existing = [], normalize) {
