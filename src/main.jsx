@@ -110,7 +110,7 @@ function App(){
  const advanced=monthTransactions.filter(x=>x.kind==='advance');
  const expenses=monthTransactions.filter(x=>x.kind==='expense');
  const receivedTotal=total(received),remainedTotal=total(remained),advancedTotal=total(advanced),expenseTotal=total(expenses);
- const netAmount=receivedTotal-advancedTotal-expenseTotal;
+ const milkSalesTotal=total(monthMilk);\n const netAmount=milkSalesTotal+receivedTotal-advancedTotal-expenseTotal;
  const milkToday=qty(todayMilk),milkToDate=qty(monthMilk);
  const milkmanLabel='दूधवाला (Milkman)';
 
@@ -126,7 +126,7 @@ function App(){
    <div className="hero-top"><span>मासिक सारांश</span><label className="hero-month"><input aria-label="माह चुनें" type="month" value={month} onChange={e=>setMonth(e.target.value)}/></label></div>
    <div className="hero-metrics">
     <div className="hero-milk"><small>दूध आज तक</small><strong>{number(milkToDate)}<i>लीटर</i></strong><span>गाय {number(qty(monthMilk.filter(x=>x.milk_type==='cow')))} L · भैंस {number(qty(monthMilk.filter(x=>x.milk_type==='buffalo')))} L</span></div>
-    <div className="hero-net"><small>शुद्ध राशि</small><strong>{money(netAmount)}</strong><span>प्राप्ति − अग्रिम − खर्च</span></div>
+    <div className="hero-net"><small>शुद्ध राशि</small><strong>{money(netAmount)}</strong><span>बिक्री + प्राप्ति − अग्रिम − खर्च</span></div>
    </div>
    <div className="hero-foot"><span>आज का दूध</span><b>{number(milkToday)} लीटर</b><span>आज की बिक्री</span><b>{money(total(todayMilk))}</b></div>
   </section>
