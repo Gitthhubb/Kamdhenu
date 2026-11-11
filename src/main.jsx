@@ -1,6 +1,7 @@
 import React,{useEffect,useState}from'react';
 import{createRoot}from'react-dom/client';
 import'./style.css';
+import{getCloudLoadingError}from'./cloud-error';
 import{isFirebaseConfigured,auth,googleProvider,db}from'./firebase';
 import{onAuthStateChanged,signInWithPopup,signOut}from'firebase/auth';
 import{normalizeMilkRecord,normalizeTransactionRecord,planRestoreMerge}from'./restore-merge';
@@ -114,7 +115,7 @@ function LedgerApp({user}){
    success('माँ का मोड चालू है। नई दूध प्रविष्टियाँ निर्धारित दूधवाले, भैंस और निश्चित दर से बनेंगी।');
   }
  }
- function report(err){setError(String(err?.message||err||'यह कार्य पूरा नहीं हो सका।'));setNotice('')}
+ function report(err){setError(getCloudLoadingError(err)||'यह कार्य पूरा नहीं हो सका।');setNotice('')}
  function success(msg){setNotice(msg);setError('')}
  async function persist(next){
   try{await setDoc(doc(db,'users',user.uid),{rates:next.rates,buyers:next.buyers,settings:next.settings,updatedAt:serverTimestamp()},{merge:true});setStore(next);return true}
@@ -290,7 +291,7 @@ function LedgerApp({user}){
  const rangeLabel=periodStartDay+'–'+periodEndDay;
  const periodLabel=periodPage===1?'पहला पृष्ठ':periodPage===2?'दूसरा पृष्ठ':'तीसरा पृष्ठ';
 
- if(!cloudReady)return <div className="auth-shell"><section className="auth-card"><div className="brand-mark">क</div><h1>कामधेनु</h1><p>आपका बही-खाता लोड हो रहा है…</p></section></div>;
+ if(!cloudReady)return <div className="auth-shell"><section className="auth-card"><div className="brand-mark">क</div><h1>कामधेनु</h1><p>Firestore से आपका बही-खाता लोड हो रहा है…</p>{error&&<><p className="error" role="alert">{error}</p><button type="button" onClick={()=>window.location.reload()}>फिर प्रयास करें</button></>}</section></div>;
  return <div className="app">
   <header>
    <div className="brand-mark">क</div>
