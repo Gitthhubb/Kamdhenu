@@ -146,7 +146,7 @@ function LedgerApp({user}){
     const d=JSON.parse(String(reader.result));
     if(!d||!Array.isArray(d.rows)||!d.rates||!Array.isArray(d.buyers))throw new Error('यह कामधेनु का वैध बैकअप नहीं है।');
     const next={rows:d.rows,transactions:Array.isArray(d.transactions)?d.transactions:[],rates:{cow_rate:Number(d.rates.cow_rate)||0,buffalo_rate:Number(d.rates.buffalo_rate)||0},buyers:d.buyers.map(String),settings:{...DEFAULT_STATE.settings,...(d.settings||{})}};
-    if(window.confirm('क्या वर्तमान बही-खाते को चुने गए बैकअप से बदलना है?'))if(persist(next)){setPersonalMode(Boolean(next.settings.personalMode));setPersonalSetup({milkman:next.settings.milkman||'',buffaloRate:String(next.settings.buffaloRate??'')});success('बैकअप पुनर्स्थापित हो गया।');}
+    if(window.confirm('क्या वर्तमान बही-खाते को चुने गए बैकअप से बदलना है?'))if(persist(next)){const restoredMode=Boolean(next.settings.personalMode);setPersonalMode(restoredMode);setPersonalSetup({milkman:next.settings.milkman||'',buffaloRate:String(next.settings.buffaloRate??'')});setForm(restoredMode?{...blankForm(next.rates),milk_type:'buffalo',buyer:next.settings.milkman||'',rate:String(next.settings.buffaloRate??'')} : blankForm(next.rates));success('बैकअप पुनर्स्थापित हो गया।');}
    }catch(err){report(err)}finally{e.target.value=''}
   };
   reader.onerror=()=>report('बैकअप फ़ाइल पढ़ी नहीं जा सकी।');
