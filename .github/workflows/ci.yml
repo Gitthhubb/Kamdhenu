@@ -1,0 +1,22 @@
+name: Build validation
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main, fix/app-hardening]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install
+      - run: npm run check
+      - name: Audit dependency tree
+        run: |
+          npm audit --json > npm-audit.json || true
+          node -e "const a=require('./npm-audit.json'); console.log(JSON.stringify({metadata:a.metadata?.vulnerabilities, advisories:Object.entries(a.vulnerabilities||{}).map(([name,v])=>({name,severity:v.severity,range:v.range,fixAvailable:v.fixAvailable,via:v.via.map(x=>typeof x==='string'?x:x.title)}))},null,2))"
