@@ -98,7 +98,7 @@ function SaleForm({form,setForm,buyers,rates,save,editing,cancel}){
  const set=(k,v)=>setForm(f=>({...f,[k]:v})),changeMilk=v=>setForm(f=>({...f,milk_type:v,rate:String(rates[v+'_rate']??0)}));
  return <form className="entry-form" onSubmit={save}>
   <label>Date<input className="date-input" type="date" required value={form.sale_date} onChange={e=>set('sale_date',e.target.value)}/></label>
-  <label>Buyer{buyers.length<=4?<RadioChoices name="buyer" value={form.buyer} onChange={v=>set('buyer',v)} options={buyers.map(x=>({value:x,label:x}))}/>:<input className="text-input" value={form.buyer} onChange={e=>set('buyer',e.target.value)} list="buyer-options" required/>}<datalist id="buyer-options">{buyers.map(x=><option key={x} value={x}/>)}</datalist></label>
+  <label>Buyer{buyers.length<=4?<RadioChoices name="buyer" value={form.buyer} onChange={v=>set('buyer',v)} options={buyers.map(x=>({value:x,label:x}))}/>:<input className="text-input" value={form.buyer} onChange={e=>set('buyer',e.target.value)} placeholder="Enter buyer" required/>}</label>
   <label>Milk type<RadioChoices name="milk-type" value={form.milk_type} onChange={changeMilk} options={[{value:'cow',label:'Cow'},{value:'buffalo',label:'Buffalo'}]}/></label>
   <label>Quantity (litres)<input className="number-input" type="number" min=".01" step=".01" inputMode="decimal" required value={form.quantity} onChange={e=>set('quantity',e.target.value)}/></label>
   <label>Rate (₹/L)<input className="number-input" type="number" min="0" step=".01" inputMode="decimal" required value={form.rate} onChange={e=>set('rate',e.target.value)}/></label>
