@@ -37,9 +37,9 @@
 - Tests import `planRestoreMerge`, `normalizeMilkRecord`, and `normalizeTransactionRecord` from `../src/restore-merge.js`.
 - `planRestoreMerge(incoming, existing, normalize)` returns records shaped as `{ id: string|null, record: object }`.
 
-- [ ] **Step 1: Write the failing tests** for repeat imports, ID-less exact duplicates, same-valued records with distinct IDs, duplicate IDs within one backup, unsafe IDs, and milk/transaction field normalization.
-- [ ] **Step 2: Run `npm test`**. Expected: fail because `src/restore-merge.js` does not yet exist.
-- [ ] **Step 3: Commit the tests and test-runner wiring** with message `test: specify idempotent backup restore`.
+- [x] **Step 1: Write the failing tests** for repeat imports, ID-less exact duplicates, same-valued records with distinct IDs, duplicate IDs within one backup, unsafe IDs, and milk/transaction field normalization.
+- [x] **Step 2: Run `npm test`**. Expected: fail because `src/restore-merge.js` does not yet exist.
+- [x] **Step 3: Commit the tests and test-runner wiring** with message `test: specify idempotent backup restore`.
 
 ### Task 2: Implement and integrate merge restore
 
@@ -54,11 +54,11 @@
 - Existing Firestore snapshots are supplied to the planner with their document IDs.
 - Use `setDoc` only for new records with safe source IDs; use `addDoc` for ID-less legacy records. Existing documents are never written.
 
-- [ ] **Step 1: Implement the pure normalization and planning functions** to satisfy the tests.
-- [ ] **Step 2: Update `restoreBackupData`** to read the two existing collections, plan additions independently, write only planned additions, then retain the existing profile-settings merge.
-- [ ] **Step 3: Run `npm test`**. Expected: all restore-merge tests pass.
-- [ ] **Step 4: Run `npm run check`**. Expected: Vite production build succeeds.
-- [ ] **Step 5: Verify the GitHub Actions run** for the final commit is successful; inspect the PR diff and combined status before reporting completion.
+- [x] **Step 1: Implement the pure normalization and planning functions** to satisfy the tests.
+- [x] **Step 2: Update `restoreBackupData`** to read the two existing collections, plan additions independently, write only planned additions, then retain the existing profile-settings merge.
+- [x] **Step 3: Run `npm test`**. Expected: all restore-merge tests pass.
+- [x] **Step 4: Run `npm run check`**. Expected: Vite production build succeeds.
+- [x] **Step 5: Verify the GitHub Actions run** for the final commit is successful; inspect the PR diff and combined status before reporting completion.
 
 ## Completion Criteria
 A second restore of the same backup adds zero entries; legacy ID-less duplicates are not re-added; distinct source IDs remain distinct even if their visible values match; existing entries are neither updated nor deleted; JSON and Drive restore use the same merge path.
