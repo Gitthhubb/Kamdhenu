@@ -1,26 +1,23 @@
-# कामधेनु Point
+# कामधेनु
 
-A mobile-first milk-sales ledger for cow and buffalo milk transactions.
+A mobile-first Hindi milk and transaction ledger.
 
 Live site: https://mymilk.onrender.com
 
+## Modules
+- **दूध:** Milkman, date, morning/evening, quantity, rate, cow/buffalo type, comments, edit/delete, and monthly CSV export.
+- **लेन-देन:** Received, remained (outstanding), advance, and expenses. Expense categories: paddy stalk, cattle feed, khali, chokar, wheat straw, and others.
+- Hero summary displays month-to-date milk quantity and net cash.
+
+Net cash is calculated as received minus advances minus expenses. Remained is tracked separately as an outstanding amount and is not treated as cash received.
+
 ## Storage model
-This edition is Supabase-free and stores records in the browser's Local Storage. Data remains in the same browser profile on the same device. It is not shared with other users, browsers, or devices. Clearing browser/site data, uninstalling the browser, or losing the device can erase the ledger.
+The app is Supabase-free and stores records in this browser's Local Storage. Records stay in the same browser profile on the same device. They are not shared with other users, browsers, or devices. Clearing site data or losing the device can erase the ledger.
 
-Use **Download backup** regularly to save a JSON backup outside the browser. Use **Restore backup** to replace the current browser ledger from a backup. Monthly CSV export is also available.
-
-## Features
-- Daily cow and buffalo milk sale entries.
-- Buyer list and per-litre rates.
-- Monthly ledger, totals, and CSV export.
-- Edit and delete records.
-- JSON backup and restore.
-
-## Access and security
-There is no account authentication or multi-user access in this local-only edition. Anyone with access to this browser profile can view or change the ledger. Do not use it for confidential multi-user records.
+Use **बैकअप लें** regularly to save a JSON backup. Use **बैकअप पुनर्स्थापित करें** to replace the current browser ledger from a backup.
 
 ## Development
-```bash
+\`\`\`bash
 npm install
 npm run dev
-```
+\`\`\`
