@@ -3,55 +3,43 @@
 A small Hindi household ledger for milk collection and daily cash entries.
 
 ## Stack
-
 - Firebase Authentication with Google sign-in.
-- Cloud Firestore on the free Spark plan.
-- Google Drive API for optional JSON backup/restore.
+- Cloud Firestore on Firebase Spark (free tier).
+- Google Drive API for optional backup in the hidden `appDataFolder`.
 - Render static hosting and installable PWA.
 
 No Supabase services or Firebase Cloud Storage are used.
 
 ## Firebase setup
-
 1. Create a Firebase project on the **Spark (no-cost)** plan.
 2. Register a Web app and copy its Firebase web configuration.
 3. Enable **Authentication → Sign-in method → Google**.
-4. Add `mymilk.onrender.com` under Authentication → Settings → Authorized domains.
-5. Create the default Cloud Firestore database in **Native mode**.
-6. Publish `firestore.rules` from this repository in the Firebase console.
-7. Copy `.env.example` values into Render environment variables. Get a Web OAuth client ID from Google Cloud credentials for the same Firebase project.
+4. Add `mymilk.onrender.com` to Authentication → Settings → Authorized domains.
+5. Create the default Cloud Firestore database in Native mode.
+6. Publish `firestore.rules` from this repository in Firebase console.
+7. Add the environment variables from `.env.example` to Render.
 
-The app needs: `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_PROJECT_ID`, `VITE_FIREBASE_APP_ID`, and `VITE_GOOGLE_CLIENT_ID`.
+Required Render variables: `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_PROJECT_ID`, `VITE_FIREBASE_APP_ID`, and `VITE_GOOGLE_CLIENT_ID`.
 
-## Google Drive backup setup
+## Google Drive backup
+Enable the Google Drive API in the same Google Cloud project. Create an OAuth Web client, add `https://mymilk.onrender.com` as an authorised JavaScript origin, and set its client ID as `VITE_GOOGLE_CLIENT_ID`. The app asks for the Drive `appDataFolder` scope only when the user presses the Drive backup or restore button. It does not request access to ordinary Drive files.
 
-Create an OAuth Web client in the same Google Cloud project. Add `https://mymilk.onrender.com` as an authorised JavaScript origin. The app uses Google Identity Services and the Drive `appDataFolder` scope to save one JSON backup file in the signed-in user's hidden application-data folder. It does not request access to the user's ordinary Drive files.
-
-Set `VITE_GOOGLE_CLIENT_ID` to that Web client ID. If Drive OAuth is not configured, the ledger still works and the normal JSON download/upload controls remain available.
-
-## Data model
-
-Each Google account gets its own `users/{uid}` document with two collections:
-- `milk`: date, shift, milkman, cow/buffalo, quantity, rate, amount, remarks.
+## Household data
+Each Google account gets its own `users/{uid}` document and two collections:
+- `milk`: date, morning/evening, milkman, cow/buffalo, quantity, rate and amount.
 - `transactions`: date, received/remained/advance/expense, amount, party, category and remarks.
 
-Personal-mode settings are stored under the same user's profile. The app reads only the signed-in user's records.
+The personal-mode settings live in the same user document.
 
-## Entry behaviour
+## Record behaviour
+Entries cannot be edited. Each entry can be deleted individually after confirmation. Deletions are permanent; export a JSON or Drive backup before removing anything.
 
-- New entries can be added.
-- Existing entries cannot be edited.
-- An entry can be deleted individually after confirmation.
-- Deletions are permanent in the ledger. Download a backup before bulk cleanup.
-- Three fixed monthly pages: days 1–10, 11–20 and 21–month-end.
-- Mother mode fixes buffalo type, milkman and rate for future milk entries.
+The existing three date pages, cow/buffalo milk choices, expense categories and mother's personal mode remain.
 
-## Free-plan limits
+## Free tier
+Firestore Spark provides a daily free quota: 1 GiB stored data, 50,000 reads, 20,000 writes and 20,000 deletes per day, plus 10 GiB/month outbound transfer. When Spark quotas are exceeded, the relevant service is capped until the quota resets; usage does not automatically switch to paid billing. Do not attach a billing account or enable Cloud Storage.
 
-Firestore Spark includes a daily free quota (currently 1 GiB stored data, 50,000 reads, 20,000 writes/deletes and 10 GiB/month outbound transfer). If a quota is exceeded on Spark, that service is capped until the quota resets; billing does not start automatically. Avoid enabling Blaze or paid Cloud Storage products.
-
-## Local development
-
+## Development
 ```bash
 npm install
 npm run dev
