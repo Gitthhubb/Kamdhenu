@@ -1,9 +1,11 @@
 import React,{useEffect,useState}from'react';
 import{createRoot}from'react-dom/client';
 import'./style.css';
-import{isSupabaseConfigured,supabase}from'./supabaseClient';
+import{isFirebaseConfigured,auth,googleProvider,db}from'./firebase';
+import{onAuthStateChanged,signInWithPopup,signOut}from'firebase/auth';
+import{normalizeMilkRecord,normalizeTransactionRecord,planRestoreMerge}from'./restore-merge';
+import{collection,doc,setDoc,addDoc,deleteDoc,getDocs,query,orderBy,onSnapshot,serverTimestamp}from'firebase/firestore';
 
-const STORE_KEY='kamdhenu-point-local-v1';
 const today=()=>{const d=new Date();return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-')};
 const money=n=>'₹'+new Intl.NumberFormat('hi-IN',{maximumFractionDigits:2}).format(Number(n)||0);
 const number=n=>new Intl.NumberFormat('hi-IN',{maximumFractionDigits:2}).format(Number(n)||0);
@@ -24,20 +26,11 @@ const sortNewest=(a,b)=>{
  const ad=a.sale_date||a.date||'',bd=b.sale_date||b.date||'';
  return bd.localeCompare(ad)||String(b.created_at||'').localeCompare(String(a.created_at||''));
 };
-function readStore(){
- try{
-  const raw=localStorage.getItem(STORE_KEY);
-  if(!raw)return structuredClone(DEFAULT_STATE);
-  const p=JSON.parse(raw);
-  if(!p||!Array.isArray(p.rows)||!p.rates||!Array.isArray(p.buyers))throw new Error('सहेजे गए बही-खाते का प्रारूप अमान्य है।');
-  return {...DEFAULT_STATE,...p,transactions:Array.isArray(p.transactions)?p.transactions:[],rates:{...DEFAULT_STATE.rates,...p.rates},settings:{...DEFAULT_STATE.settings,...(p.settings||{})}};
- }catch(err){console.error(err);return structuredClone(DEFAULT_STATE)}
-}
 function RadioChoices({value,onChange,options,name}){
  return <div className="radio-group" role="radiogroup">{options.map(o=><label className={'radio-choice '+(value===o.value?'chosen':'')} key={o.value}><input type="radio" name={name} value={o.value} checked={value===o.value} onChange={()=>onChange(o.value)}/><span>{o.label}</span></label>)}</div>;
 }
 function LedgerApp({user}){
- const initial=readStore();
+ const initial=DEFAULT_STATE;
  const [store,setStore]=useState(initial);
  const [tab,setTab]=useState('Milk');
  const [month,setMonth]=useState(today().slice(0,7));
@@ -47,6 +40,8 @@ function LedgerApp({user}){
  const [form,setForm]=useState(()=>initial.settings.personalMode?{...blankForm(initial.rates),milk_type:'buffalo',buyer:initial.settings.milkman||'',rate:String(initial.settings.buffaloRate??'')}:blankForm(initial.rates));
  const [txForm,setTxForm]=useState(blankTransaction());
  const [personalMode,setPersonalMode]=useState(Boolean(initial.settings.personalMode));
+ const [cloudReady,setCloudReady]=useState(false);
+ const [driveBusy,setDriveBusy]=useState(false);
  const [personalSetupOpen,setPersonalSetupOpen]=useState(false);
  const [personalSetup,setPersonalSetup]=useState(()=>({milkman:initial.settings.milkman||'',buffaloRate:String(initial.settings.buffaloRate??initial.rates.buffalo_rate??'')}));
  const [installPrompt,setInstallPrompt]=useState(null);
@@ -60,8 +55,24 @@ function LedgerApp({user}){
   window.addEventListener('appinstalled',onInstalled);
   return()=>{window.removeEventListener('beforeinstallprompt',onPrompt);window.removeEventListener('appinstalled',onInstalled)};
  },[]);
+ useEffect(()=>{
+  if(!user?.uid)return;
+  let rootLoaded=false,milkLoaded=false,txLoaded=false,profile={},milkRows=[],txRows=[];
+  const apply=()=>{
+   if(!rootLoaded||!milkLoaded||!txLoaded)return;
+   const next={...DEFAULT_STATE,...profile,rows:milkRows,transactions:txRows,rates:{...DEFAULT_STATE.rates,...(profile.rates||{})},settings:{...DEFAULT_STATE.settings,...(profile.settings||{})},buyers:Array.isArray(profile.buyers)?profile.buyers:[]};
+   setStore(next);setPersonalMode(Boolean(next.settings.personalMode));
+   setPersonalSetup({milkman:next.settings.milkman||'',buffaloRate:String(next.settings.buffaloRate??'')});
+   setForm(next.settings.personalMode?{...blankForm(next.rates),milk_type:'buffalo',buyer:next.settings.milkman||'',rate:String(next.settings.buffaloRate??'')}:blankForm(next.rates));
+   setCloudReady(true);
+  };
+  const a=onSnapshot(doc(db,'users',user.uid),snap=>{profile=snap.exists()?snap.data():{};rootLoaded=true;apply()},report);
+  const b=onSnapshot(query(collection(db,'users',user.uid,'milk'),orderBy('date','desc')),snap=>{milkRows=snap.docs.map(d=>({id:d.id,...d.data(),sale_date:d.data().date,buyer:d.data().milkman,milk_type:d.data().milkType,created_at:d.data().createdAt?.toDate?.()?.toISOString?.()||''}));milkLoaded=true;apply()},report);
+  const d=onSnapshot(query(collection(db,'users',user.uid,'transactions'),orderBy('date','desc')),snap=>{txRows=snap.docs.map(d=>({id:d.id,...d.data(),created_at:d.data().createdAt?.toDate?.()?.toISOString?.()||''}));txLoaded=true;apply()},report);
+  return()=>{a();b();d()};
+ },[user?.uid]);
 
- function savePersonalSettings(e){
+ async function savePersonalSettings(e){
   e.preventDefault();
   const milkman=personalSetup.milkman.trim();
   const rateText=String(personalSetup.buffaloRate).trim();
@@ -69,17 +80,17 @@ function LedgerApp({user}){
   if(!milkman||!rateText||!Number.isFinite(rate)||rate<=0)return report('माँ के मोड के लिए दूधवाले का नाम और शून्य से अधिक निश्चित दर दर्ज करें।');
   const settings={...store.settings,milkman,buffaloRate:rateText,personalMode};
   const next={...store,settings,rates:{...store.rates,buffalo_rate:rate},buyers:[...new Set([...(store.buyers||[]),milkman])]};
-  if(persist(next)){
+  if(await persist(next)){
    if(personalMode)setForm(current=>({...current,milk_type:'buffalo',buyer:milkman,rate:rateText}));
    setPersonalSetup({milkman,buffaloRate:rateText});
    setPersonalSetupOpen(false);
    success(personalMode?'माँ के मोड की नई सेटिंग लागू हो गई।':'माँ के मोड की सेटिंग सुरक्षित हो गई।');
   }
  }
- function togglePersonalMode(){
+ async function togglePersonalMode(){
   if(personalMode){
    const settings={...store.settings,personalMode:false};
-   if(persist({...store,settings})){
+   if(await persist({...store,settings})){
     setPersonalMode(false);
     setForm(current=>({...current,milk_type:'cow',rate:String(store.rates.cow_rate??0)}));
     success('माँ का मोड बंद हो गया।');
@@ -96,7 +107,7 @@ function LedgerApp({user}){
   }
   const settings={...store.settings,personalMode:true,milkman,buffaloRate:rateText};
   const next={...store,settings,rates:{...store.rates,buffalo_rate:rate},buyers:[...new Set([...(store.buyers||[]),milkman])]};
-  if(persist(next)){
+  if(await persist(next)){
    setPersonalMode(true);
    setForm(current=>({...current,milk_type:'buffalo',buyer:milkman,rate:rateText}));
    setPersonalSetupOpen(false);
@@ -105,9 +116,17 @@ function LedgerApp({user}){
  }
  function report(err){setError(String(err?.message||err||'यह कार्य पूरा नहीं हो सका।'));setNotice('')}
  function success(msg){setNotice(msg);setError('')}
- function persist(next){
-  try{localStorage.setItem(STORE_KEY,JSON.stringify(next))}catch(err){report('ब्राउज़र में संग्रहण स्थान उपलब्ध नहीं है। बैकअप लेकर कुछ स्थान खाली करें।');return false}
-  setStore(next);return true;
+ async function persist(next){
+  try{await setDoc(doc(db,'users',user.uid),{rates:next.rates,buyers:next.buyers,settings:next.settings,updatedAt:serverTimestamp()},{merge:true});setStore(next);return true}
+  catch(err){report(err);return false}
+ }
+ async function deleteMilk(id){
+  if(!window.confirm('क्या इस दूध प्रविष्टि को स्थायी रूप से हटाना है?'))return;
+  try{await deleteDoc(doc(db,'users',user.uid,'milk',id));success('दूध प्रविष्टि हटा दी गई।')}catch(err){report(err)}
+ }
+ async function deleteTransaction(id){
+  if(!window.confirm('क्या इस लेन-देन को स्थायी रूप से हटाना है?'))return;
+  try{await deleteDoc(doc(db,'users',user.uid,'transactions',id));success('लेन-देन हटा दिया गया।')}catch(err){report(err)}
  }
  async function installApp(){
   if(!installPrompt){success('ब्राउज़र मेनू से “ऐप इंस्टॉल करें” या “होम स्क्रीन पर जोड़ें” चुनें।');return}
@@ -138,49 +157,109 @@ function LedgerApp({user}){
   const blob=new Blob([JSON.stringify({schema:4,exportedAt:new Date().toISOString(),...store},null,2)],{type:'application/json'});
   const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='kamdhenu-backup-'+today()+'.json';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);success('बैकअप डाउनलोड हो गया।');
  }
+ async function restoreBackupData(d){
+  if(!d||!Array.isArray(d.rows)||!Array.isArray(d.transactions)||!d.rates)throw new Error('यह कामधेनु का वैध बैकअप नहीं है।');
+  if(!window.confirm('क्या बैकअप की केवल नई प्रविष्टियाँ जोड़नी हैं? मौजूदा प्रविष्टियाँ बदली या हटाई नहीं जाएँगी।'))return;
+  const milkCollection=collection(db,'users',user.uid,'milk');
+  const transactionCollection=collection(db,'users',user.uid,'transactions');
+  const [milkSnapshot,transactionSnapshot]=await Promise.all([getDocs(milkCollection),getDocs(transactionCollection)]);
+  const milkExisting=milkSnapshot.docs.map(snapshot=>({id:snapshot.id,...snapshot.data()}));
+  const transactionExisting=transactionSnapshot.docs.map(snapshot=>({id:snapshot.id,...snapshot.data()}));
+  const milkAdditions=planRestoreMerge(d.rows,milkExisting,normalizeMilkRecord);
+  const transactionAdditions=planRestoreMerge(d.transactions,transactionExisting,normalizeTransactionRecord);
+  for(const item of milkAdditions){
+   const payload={...item.record,createdAt:serverTimestamp()};
+   if(item.id)await setDoc(doc(milkCollection,item.id),payload);
+   else await addDoc(milkCollection,payload);
+  }
+  for(const item of transactionAdditions){
+   const payload={...item.record,createdAt:serverTimestamp()};
+   if(item.id)await setDoc(doc(transactionCollection,item.id),payload);
+   else await addDoc(transactionCollection,payload);
+  }
+  await persist({...store,rates:{...store.rates,...d.rates},buyers:[...new Set([...store.buyers,...(d.buyers||[])])],settings:{...store.settings,...(d.settings||{})}});
+  success(`बैकअप से ${milkAdditions.length} दूध और ${transactionAdditions.length} लेन-देन की नई प्रविष्टियाँ जोड़ी गईं।`);
+ }
  function importBackup(e){
   const file=e.target.files?.[0];if(!file)return;
   const reader=new FileReader();
-  reader.onload=()=>{
-   try{
-    const d=JSON.parse(String(reader.result));
-    if(!d||!Array.isArray(d.rows)||!d.rates||!Array.isArray(d.buyers))throw new Error('यह कामधेनु का वैध बैकअप नहीं है।');
-    const next={rows:d.rows,transactions:Array.isArray(d.transactions)?d.transactions:[],rates:{cow_rate:Number(d.rates.cow_rate)||0,buffalo_rate:Number(d.rates.buffalo_rate)||0},buyers:d.buyers.map(String),settings:{...DEFAULT_STATE.settings,...(d.settings||{})}};
-    if(window.confirm('क्या वर्तमान बही-खाते को चुने गए बैकअप से बदलना है?'))if(persist(next)){const restoredMode=Boolean(next.settings.personalMode);setPersonalMode(restoredMode);setPersonalSetup({milkman:next.settings.milkman||'',buffaloRate:String(next.settings.buffaloRate??'')});setForm(restoredMode?{...blankForm(next.rates),milk_type:'buffalo',buyer:next.settings.milkman||'',rate:String(next.settings.buffaloRate??'')} : blankForm(next.rates));success('बैकअप पुनर्स्थापित हो गया।');}
-   }catch(err){report(err)}finally{e.target.value=''}
+  reader.onload=async()=>{
+   try{await restoreBackupData(JSON.parse(String(reader.result)))}
+   catch(err){report(err)}finally{e.target.value=''}
   };
-  reader.onerror=()=>report('बैकअप फ़ाइल पढ़ी नहीं जा सकी।');
   reader.readAsText(file);
  }
- function saveMilk(e){
+ async function backupToDrive(accessToken){
+  const payload={schema:4,exportedAt:new Date().toISOString(),...store};
+  const find=await fetch("https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&q=name%3D%27kamdhenu-backup.json%27%20and%20trashed%3Dfalse&fields=files(id,name)",{headers:{Authorization:'Bearer '+accessToken}});
+  if(!find.ok)throw new Error('Google Drive में बैकअप फ़ाइल की जाँच नहीं हो सकी।');
+  const matches=(await find.json()).files||[];
+  const existing=matches[0];
+  const boundary='kamdhenu_drive_boundary_2026';
+  const metadata=existing?{name:'kamdhenu-backup.json'}:{name:'kamdhenu-backup.json',mimeType:'application/json',parents:['appDataFolder']};
+  const body='--'+boundary+'\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n'+JSON.stringify(metadata)+'\r\n--'+boundary+'\r\nContent-Type: application/json\r\n\r\n'+JSON.stringify(payload)+'\r\n--'+boundary+'--';
+  const url=existing?'https://www.googleapis.com/upload/drive/v3/files/'+existing.id+'?uploadType=multipart':'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart';
+  const response=await fetch(url,{method:existing?'PATCH':'POST',headers:{Authorization:'Bearer '+accessToken,'Content-Type':'multipart/related; boundary='+boundary},body});
+  if(!response.ok)throw new Error('Google Drive में बैकअप सुरक्षित नहीं हो सका।');
+  success('Google Drive में बैकअप सुरक्षित हो गया।');
+ }
+ async function restoreFromDrive(accessToken){
+  const find=await fetch("https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&q=name%3D%27kamdhenu-backup.json%27%20and%20trashed%3Dfalse&fields=files(id,name)",{headers:{Authorization:'Bearer '+accessToken}});
+  if(!find.ok)throw new Error('Google Drive बैकअप की जाँच नहीं हो सकी।');
+  const matches=(await find.json()).files||[];
+  if(!matches.length)throw new Error('Google Drive में कामधेनु का बैकअप नहीं मिला।');
+  const response=await fetch('https://www.googleapis.com/drive/v3/files/'+matches[0].id+'?alt=media',{headers:{Authorization:'Bearer '+accessToken}});
+  if(!response.ok)throw new Error('Google Drive बैकअप डाउनलोड नहीं हो सका।');
+  await restoreBackupData(await response.json());
+ }
+ function requestDriveAccess(action){
+  const clientId=import.meta.env.VITE_GOOGLE_CLIENT_ID;
+  if(!clientId)return report('Drive बैकअप के लिए Render पर VITE_GOOGLE_CLIENT_ID निर्धारित करें।');
+  if(!window.google?.accounts?.oauth2)return report('Google Drive अनुमति सेवा लोड नहीं हुई। इंटरनेट कनेक्शन जाँचें।');
+  setDriveBusy(true);
+  try{
+   const client=window.google.accounts.oauth2.initTokenClient({
+    client_id:clientId,
+    scope:'https://www.googleapis.com/auth/drive.appdata',
+    callback:async response=>{
+     try{
+      if(response.error||!response.access_token)throw new Error(response.error_description||'Google Drive अनुमति नहीं मिली।');
+      await action(response.access_token);
+     }catch(err){report(err)}finally{setDriveBusy(false)}
+    },
+    error_callback:err=>{setDriveBusy(false);report(err?.message||'Google Drive अनुमति विफल रही।')}
+   });
+   client.requestAccessToken({hint:user.email||undefined});
+  }catch(err){setDriveBusy(false);report(err)}
+ }
+
+ async function saveMilk(e){
   e.preventDefault();
   const quantity=Number(form.quantity),rate=Number(personalMode?store.settings.buffaloRate:form.rate),milkman=(personalMode?store.settings.milkman:form.buyer).trim(),milkType=personalMode?'buffalo':form.milk_type;
   if(form.sale_date<periodStart||form.sale_date>periodEnd)return report('दिनांक चुने हुए पृष्ठ की अवधि में होनी चाहिए।');
   if(!form.sale_date||!milkman||!String(form.quantity).trim()||!String(form.rate).trim()||!Number.isFinite(quantity)||quantity<=0||!Number.isFinite(rate)||rate<0)return report('दिनांक, दूधवाले का नाम, शून्य से अधिक मात्रा और वैध दर दर्ज करें।');
-  const now=new Date().toISOString();
-  const record={sale_date:form.sale_date,shift:form.shift||'morning',buyer:milkman,milk_type:milkType,quantity,rate,amount:Math.round(quantity*rate*100)/100,remarks:form.remarks.trim()||null,id:crypto.randomUUID(),created_at:now,updated_at:now};
-  const next={
-   ...store,
-   rows:[record,...store.rows],
-   buyers:[...new Set([...(store.buyers||[]),milkman])],
-   rates:{...store.rates,[milkType+'_rate']:rate}
-  };
-  if(persist(next)){setForm(personalMode?{...blankForm(next.rates),milk_type:'buffalo',buyer:next.settings.milkman,rate:String(next.settings.buffaloRate)}:blankForm(next.rates));success('नई दूध प्रविष्टि सुरक्षित हो गई।')}
+  try{
+   await addDoc(collection(db,'users',user.uid,'milk'),{date:form.sale_date,shift:form.shift||'morning',milkman,milkType,quantity,rate,amount:Math.round(quantity*rate*100)/100,remarks:form.remarks.trim(),createdAt:serverTimestamp()});
+   await persist({...store,buyers:[...new Set([...store.buyers,milkman])],rates:{...store.rates,[milkType+'_rate']:rate}});
+   setForm(personalMode?{...blankForm(store.rates),milk_type:'buffalo',buyer:store.settings.milkman,rate:String(store.settings.buffaloRate)}:blankForm(store.rates));
+   success('नई दूध प्रविष्टि सुरक्षित हो गई।');
+  }catch(err){report(err)}
  }
- function saveTransaction(e){
+ async function saveTransaction(e){
   e.preventDefault();
   const amount=Number(txForm.amount);
   if(txForm.date<periodStart||txForm.date>periodEnd)return report('दिनांक चुने हुए पृष्ठ की अवधि में होनी चाहिए।');
   if(!txForm.date||!String(txForm.amount).trim()||!Number.isFinite(amount)||amount<=0)return report('वैध दिनांक और शून्य से अधिक राशि दर्ज करें।');
   if(txForm.kind==='expense'&&!txForm.category)return report('खर्च का मद चुनें।');
-  const now=new Date().toISOString();
-  const record={...txForm,amount,party:txForm.party.trim(),remarks:txForm.remarks.trim(),id:crypto.randomUUID(),created_at:now,updated_at:now};
-  if(persist({...store,transactions:[record,...store.transactions]})){setTxForm(blankTransaction());success('नया लेन-देन सुरक्षित हो गया।')}
+  try{
+   await addDoc(collection(db,'users',user.uid,'transactions'),{date:txForm.date,kind:txForm.kind,amount,party:txForm.party.trim(),category:txForm.kind==='expense'?txForm.category:'',remarks:txForm.remarks.trim(),createdAt:serverTimestamp()});
+   setTxForm(blankTransaction());success('नया लेन-देन सुरक्षित हो गया।');
+  }catch(err){report(err)}
  }
  function exportCsv(){
   const data=store.rows.filter(x=>x.sale_date.startsWith(month)).sort(sortNewest);
   const lines=[['दिनांक','दूधवाला','समय','दूध का प्रकार','मात्रा (लीटर)','दर','राशि','टिप्पणी'],...data.map(x=>[x.sale_date,x.buyer,shiftLabel(x.shift),milkLabel(x.milk_type),x.quantity,x.rate,x.amount,x.remarks||''])];
-  const csv=lines.map(row=>row.map(x=>{let v=String(x??'');if(/^[\\t\\r ]*[=+@-]/.test(v))v="'"+v;return '"'+v.replaceAll('"','""')+'"'}).join(',')).join('\\r\\n');
+  const csv=lines.map(row=>row.map(x=>{let v=String(x??'');if(/^[\\t\\r ]*[=+@-]/.test(v))v="'"+v;return '"'+v.replaceAll('"','""')+'"'}).join(',')).join('\r\n');
   const url=URL.createObjectURL(new Blob(['\\ufeff'+csv],{type:'text/csv;charset=utf-8'})),a=document.createElement('a');a.href=url;a.download='kamdhenu-doodh-'+month+'.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
  }
 
@@ -211,6 +290,7 @@ function LedgerApp({user}){
  const rangeLabel=periodStartDay+'–'+periodEndDay;
  const periodLabel=periodPage===1?'पहला पृष्ठ':periodPage===2?'दूसरा पृष्ठ':'तीसरा पृष्ठ';
 
+ if(!cloudReady)return <div className="auth-shell"><section className="auth-card"><div className="brand-mark">क</div><h1>कामधेनु</h1><p>आपका बही-खाता लोड हो रहा है…</p></section></div>;
  return <div className="app">
   <header>
    <div className="brand-mark">क</div>
@@ -220,8 +300,12 @@ function LedgerApp({user}){
    <label className="backup-label">बैकअप पुनर्स्थापित करें<input type="file" accept="application/json,.json" onChange={importBackup}/></label>
    <button className="header-action" onClick={exportBackup}>बैकअप लें</button>
   </header>
-  <div className="account-bar"><span title={user?.email}>{user?.email||'साइन इन किया हुआ खाता'}</span><button type="button" onClick={async()=>{const{error}=await supabase.auth.signOut();if(error)report(error.message)}}>साइन आउट</button></div>
-  <div className="storage-notice">परीक्षण संस्करण · अभी की प्रविष्टियाँ केवल परीक्षण हेतु हैं। वास्तविक हिसाब संस्करण 2.0 के स्थिर विमोचन के बाद ही दर्ज करें। डेटा इस डिवाइस के ब्राउज़र में रहता है।</div>
+  <div className="account-bar"><span title={user?.email}>{user?.email}</span><button type="button" onClick={()=>signOut(auth)}>साइन आउट</button></div>
+  <div className="drive-actions">
+   <button type="button" className="secondary" onClick={()=>requestDriveAccess(backupToDrive)} disabled={driveBusy}>{driveBusy?'प्रक्रिया जारी है…':'Drive में बैकअप'}</button>
+   <button type="button" className="secondary" onClick={()=>requestDriveAccess(restoreFromDrive)} disabled={driveBusy}>Drive से पुनर्स्थापित करें</button>
+  </div>
+  <div className="storage-notice">परीक्षण संस्करण · प्रविष्टियाँ आपके Google खाते के साथ Firestore में सिंक होती हैं। वास्तविक हिसाब Version 2.0 के स्थिर विमोचन के बाद दर्ज करें।</div>
   <section className="mode-strip">
    <div><b>माँ का व्यक्तिगत मोड</b><small>केवल भैंस · निश्चित दर · तय दूधवाला</small></div>
    <button type="button" className={personalMode?'mode-on':'mode-off'} aria-pressed={personalMode} onClick={togglePersonalMode}>{personalMode?'चालू':'बंद'}</button>
@@ -276,13 +360,13 @@ function LedgerApp({user}){
      </div>
      <label>टिप्पणी<textarea className="comment-input" rows="2" value={form.remarks} onChange={e=>setForm({...form,remarks:e.target.value})} placeholder="वैकल्पिक टिप्पणी"/></label>
      <b className="amount-preview">कुल राशि: {money(Number(form.quantity)*Number(form.rate))}</b>
-     <p className="append-note">प्रविष्टि सुरक्षित होने के बाद बदली या हटाई नहीं जा सकती।</p>
+     <p className="append-note">प्रविष्टि सुरक्षित होने के बाद बदली नहीं जा सकती; आवश्यकता हो तो हटाई जा सकती है।</p>
      <div className="form-actions"><button>नई दूध प्रविष्टि सुरक्षित करें</button></div>
     </form>
     <div className="list-heading"><h2>इस अवधि की दूध प्रविष्टियाँ</h2><button className="secondary small-action" onClick={exportCsv}>मासिक CSV</button></div>
     <div className="record-list">{periodMilk.map(row=><article className="record" key={row.id}>
      <div><b>{row.buyer}</b><small>{row.sale_date} · {shiftLabel(row.shift)} · {milkLabel(row.milk_type)} · {number(row.quantity)} लीटर × {money(row.rate)}</small>{row.remarks&&<small>{row.remarks}</small>}</div>
-     <strong>{money(row.amount)}</strong>
+     <strong>{money(row.amount)}</strong><div className="record-actions"><button type="button" className="delete-record" onClick={()=>deleteMilk(row.id)}>हटाएँ</button></div>
     </article>)}{!periodMilk.length&&<p className="empty">इस अवधि में कोई दूध प्रविष्टि नहीं है।</p>}</div>
    </>}
    {tab==='Transactions'&&<>
@@ -300,7 +384,7 @@ function LedgerApp({user}){
      <label>किससे / किसे (To Whom)<input className="text-input full-text" value={txForm.party} onChange={e=>setTxForm({...txForm,party:e.target.value})} placeholder="व्यक्ति या पार्टी का नाम"/></label>
      {txForm.kind==='expense'&&<label>खर्च का मद<RadioChoices name="expense-category" value={txForm.category} onChange={v=>setTxForm({...txForm,category:v})} options={expenseCategories}/></label>}
      <label>टिप्पणी<textarea className="comment-input" rows="2" value={txForm.remarks} onChange={e=>setTxForm({...txForm,remarks:e.target.value})} placeholder="वैकल्पिक टिप्पणी"/></label>
-     <p className="append-note">हर लेन-देन नई प्रविष्टि के रूप में सुरक्षित होगा। पुराने रिकॉर्ड बदले या हटाए नहीं जा सकते।</p>
+     <p className="append-note">हर लेन-देन नई प्रविष्टि है। इसे बदला नहीं जा सकता; आवश्यकता होने पर हटाया जा सकता है।</p>
      <div className="form-actions"><button>नया लेन-देन सुरक्षित करें</button></div>
     </form>
     <h2 className="section-title">इस अवधि के लेन-देन</h2>
@@ -309,7 +393,7 @@ function LedgerApp({user}){
      const cat=expenseCategories.find(c=>c.value===t.category)?.label||'अन्य';
      return <article className="record" key={t.id}>
       <div><b>{kindLabel}{t.kind==='expense'?' · '+cat:''}</b><small>{t.date}{t.party?' · '+t.party:''}{t.remarks?' · '+t.remarks:''}</small></div>
-      <strong>{money(t.amount)}</strong>
+      <strong>{money(t.amount)}</strong><div className="record-actions"><button type="button" className="delete-record" onClick={()=>deleteTransaction(t.id)}>हटाएँ</button></div>
      </article>
     })}{!periodTransactions.length&&<p className="empty">इस अवधि में कोई लेन-देन दर्ज नहीं है।</p>}</div>
    </>}
@@ -319,70 +403,13 @@ function LedgerApp({user}){
 }
 
 function AuthGate(){
- const [session,setSession]=useState(null);
- const [authReady,setAuthReady]=useState(false);
- const [authMode,setAuthMode]=useState('signin');
- const [email,setEmail]=useState('');
- const [password,setPassword]=useState('');
- const [busy,setBusy]=useState(false);
- const [authError,setAuthError]=useState('');
- const [authNotice,setAuthNotice]=useState('');
- useEffect(()=>{
-  if(!isSupabaseConfigured){setAuthReady(true);return}
-  let mounted=true;
-  const {data:{subscription}}=supabase.auth.onAuthStateChange((_event,nextSession)=>{
-   if(mounted){setSession(nextSession);setAuthReady(true)}
-  });
-  supabase.auth.getSession().then(({data,error})=>{
-   if(!mounted)return;
-   if(error)setAuthError(error.message||'खाता सत्यापित नहीं हो सका।');
-   setSession(data?.session||null);
-   setAuthReady(true);
-  }).catch(err=>{if(mounted){setAuthError(err.message||'खाता सत्यापित नहीं हो सका।');setAuthReady(true)}});
-  return()=>{mounted=false;subscription.unsubscribe()};
- },[]);
- async function submitAuth(event){
-  event.preventDefault();
-  setAuthError('');setAuthNotice('');
-  const cleanEmail=email.trim().toLowerCase();
-  if(!cleanEmail||!password)return setAuthError('ईमेल और पासवर्ड दर्ज करें।');
-  if(authMode==='signup'&&password.length<8)return setAuthError('पासवर्ड कम-से-कम 8 अक्षरों का होना चाहिए।');
-  setBusy(true);
-  try{
-   if(authMode==='signup'){
-    const {data,error}=await supabase.auth.signUp({email:cleanEmail,password,options:{emailRedirectTo:window.location.origin}});
-    if(error)throw error;
-    if(data?.session)setAuthNotice('खाता बन गया और साइन इन हो गया।');
-    else setAuthNotice('पंजीकरण अनुरोध स्वीकार हुआ। ईमेल में पुष्टि लिंक खोलें, फिर यहाँ साइन इन करें।');
-   }else{
-    const {error}=await supabase.auth.signInWithPassword({email:cleanEmail,password});
-    if(error)throw error;
-   }
-  }catch(err){
-   const message=String(err?.message||'');
-   setAuthError(/invalid login credentials/i.test(message)?'ईमेल या पासवर्ड सही नहीं है.':/email not confirmed/i.test(message)?'पहले अपने ईमेल पते की पुष्टि करें।':message||'प्रमाणीकरण पूरा नहीं हो सका।');
-  }finally{setBusy(false)}
- }
- if(!isSupabaseConfigured)return <div className="auth-shell"><section className="auth-card"><div className="brand-mark">क</div><h1>कामधेनु</h1><p>खाता सेवा अभी कॉन्फ़िगर नहीं है। Render पर VITE_SUPABASE_URL और VITE_SUPABASE_PUBLISHABLE_KEY निर्धारित करें।</p></section></div>;
- if(!authReady)return <div className="auth-shell"><section className="auth-card"><div className="brand-mark">क</div><h1>कामधेनु</h1><p>खाता सत्यापित किया जा रहा है…</p></section></div>;
- if(session)return <LedgerApp user={session.user}/>;
- return <div className="auth-shell">
-  <section className="auth-card">
-   <div className="brand-mark">क</div>
-   <h1>कामधेनु</h1>
-   <p className="auth-subtitle">दूध एवं दैनिक हिसाब</p>
-   <div className="auth-tabs"><button type="button" className={authMode==='signin'?'active':''} onClick={()=>{setAuthMode('signin');setAuthError('');setAuthNotice('')}}>साइन इन</button><button type="button" className={authMode==='signup'?'active':''} onClick={()=>{setAuthMode('signup');setAuthError('');setAuthNotice('')}}>खाता बनाएँ</button></div>
-   <form className="auth-form" onSubmit={submitAuth}>
-    <label>ईमेल पता<input type="email" autoComplete="email" autoCapitalize="none" value={email} onChange={e=>setEmail(e.target.value)} placeholder="name@example.com" required/></label>
-    <label>पासवर्ड<input type="password" autoComplete={authMode==='signup'?'new-password':'current-password'} minLength={authMode==='signup'?8:1} value={password} onChange={e=>setPassword(e.target.value)} placeholder={authMode==='signup'?'कम-से-कम 8 अक्षर':'अपना पासवर्ड दर्ज करें'} required/></label>
-    {authMode==='signup'&&<small>खाता बनाने के लिए मान्य ईमेल पता और कम-से-कम 8 अक्षरों का पासवर्ड आवश्यक है। ईमेल पुष्टि सक्षम होने पर पुष्टि लिंक भी खोलना होगा।</small>}
-    {authError&&<p className="error" role="alert">{authError}</p>}
-    {authNotice&&<p className="notice" role="status">{authNotice}</p>}
-    <button type="submit" disabled={busy}>{busy?'प्रक्रिया जारी है…':authMode==='signup'?'ईमेल से खाता बनाएँ':'साइन इन करें'}</button>
-   </form>
-   <p className="auth-footnote">परीक्षण संस्करण · वास्तविक हिसाब संस्करण 2.0 के स्थिर विमोचन के बाद दर्ज करें।</p>
-  </section>
- </div>;
+ const [user,setUser]=useState(null),[ready,setReady]=useState(false),[error,setError]=useState('');
+ useEffect(()=>{if(!isFirebaseConfigured){setReady(true);return}return onAuthStateChanged(auth,next=>{setUser(next);setReady(true)})},[]);
+ async function login(){setError('');try{await signInWithPopup(auth,googleProvider)}catch(err){setError(err?.message||'Google sign-in पूरा नहीं हो सका।')}}
+ if(!isFirebaseConfigured)return <div className="auth-shell"><section className="auth-card"><div className="brand-mark">क</div><h1>कामधेनु</h1><p>Firebase config अभी Render पर निर्धारित नहीं है।</p></section></div>;
+ if(!ready)return <div className="auth-shell"><section className="auth-card"><div className="brand-mark">क</div><h1>कामधेनु</h1><p>Google खाते की जाँच हो रही है…</p></section></div>;
+ if(user)return <LedgerApp user={user}/>;
+ return <div className="auth-shell"><section className="auth-card"><div className="brand-mark">क</div><h1>कामधेनु</h1><p className="auth-subtitle">दूध एवं दैनिक हिसाब</p><button className="google-auth-button" type="button" onClick={login}>Google से साइन इन करें</button>{error&&<p className="error" role="alert">{error}</p>}<p className="auth-note">एक Google खाता ही आपका कामधेनु खाता होगा। अलग पासवर्ड की आवश्यकता नहीं।</p><p className="auth-footnote">परीक्षण संस्करण · वास्तविक हिसाब Version 2.0 के बाद।</p></section></div>;
 }
 function App(){return <AuthGate/>;}
 createRoot(document.getElementById('root')).render(<App/>);

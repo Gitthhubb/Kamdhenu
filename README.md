@@ -1,53 +1,46 @@
 # कामधेनु
 
-Installable, mobile-first Hindi milk and transaction ledger.
+A small Hindi household ledger for milk collection and daily cash entries.
 
-Live site: https://mymilk.onrender.com
+## Stack
+- Firebase Authentication with Google sign-in.
+- Cloud Firestore on Firebase Spark (free tier).
+- Google Drive API for optional backup in the hidden `appDataFolder`.
+- Render static hosting and installable PWA.
 
-## Current edition: testing release
+No Supabase services or Firebase Cloud Storage are used.
 
-- Email account registration and sign-in are mandatory before the ledger opens. Authentication is handled by Supabase Auth.
-- This is a test release. Entries made now are trials, not the authoritative household ledger. Real accounting records should be entered only after the stable 2.0 release.
-- Milk and transaction records remain in browser Local Storage. They are not yet synchronised to Supabase or shared across devices.
-- The two modules remain **दूध** and **लेन-देन**.
-- Three date-based pages per month: days 1–10, 11–20, and 21–month-end.
-- Records are append-only in the app: individual entries cannot be edited or deleted.
-- JSON backup/restore and monthly milk CSV export remain available.
+## Firebase setup
+1. Create a Firebase project on the **Spark (no-cost)** plan.
+2. Register a Web app and copy its Firebase web configuration.
+3. Enable **Authentication → Sign-in method → Google**.
+4. Add `mymilk.onrender.com` to Authentication → Settings → Authorized domains.
+5. Create the default Cloud Firestore database in Native mode.
+6. Publish `firestore.rules` from this repository in Firebase console.
+7. Add the environment variables from `.env.example` to Render.
 
-## माँ का व्यक्तिगत मोड
+Required Render variables: `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_PROJECT_ID`, `VITE_FIREBASE_APP_ID`, and `VITE_GOOGLE_CLIENT_ID`.
 
-The toggle labelled **माँ का व्यक्तिगत मोड** applies a simplified milk-entry profile:
+## Google Drive backup
+Enable the Google Drive API in the same Google Cloud project. Create an OAuth Web client, add `https://mymilk.onrender.com` as an authorised JavaScript origin, and set its client ID as `VITE_GOOGLE_CLIENT_ID`. The app asks for the Drive `appDataFolder` scope only when the user presses the Drive backup or restore button. It does not request access to ordinary Drive files.
 
-- Milk type is fixed to **भैंस**.
-- The selected milkman is fixed for new entries.
-- The buffalo milk rate is fixed for new entries.
-- Date, morning/evening, quantity, and remarks remain editable.
-- Configure the milkman and fixed rate under **सेटिंग** before switching the mode on. Changing these settings affects future entries only; existing test records remain unchanged.
+## Household data
+Each Google account gets its own `users/{uid}` document and two collections:
+- `milk`: date, morning/evening, milkman, cow/buffalo, quantity, rate and amount.
+- `transactions`: date, received/remained/advance/expense, amount, party, category and remarks.
 
-## Authentication configuration
+The personal-mode settings live in the same user document.
 
-The static Vite build requires these Render environment variables:
+## Record behaviour
+Entries cannot be edited. Each entry can be deleted individually after confirmation. Deletions are permanent; export a JSON or Drive backup before removing anything. Restoring a backup merges only missing records. Reusing the same backup does not create duplicates; older records without IDs are matched by their normalized fields. Distinct records with different IDs are preserved even when their visible values match.
 
-- `VITE_SUPABASE_URL`
-- `VITE_SUPABASE_PUBLISHABLE_KEY`
+The existing three date pages, cow/buffalo milk choices, expense categories and mother's personal mode remain.
 
-For local development, copy `.env.example` to `.env.local` and populate the same values. Only the publishable key belongs in the browser; never place a Supabase secret or service-role key in the frontend.
-
-In Supabase Authentication URL Configuration, set the Site URL to `https://mymilk.onrender.com` and allow that origin as a redirect URL. Email/password registration uses the current app origin as its confirmation redirect. If confirmation mail does not reach a non-organisation email address, configure a supported custom SMTP provider for Supabase Auth before inviting other users.
-
-The database has an authentication/profile foundation, but this edition deliberately does not write milk or transaction entries to the cloud. The data-storage and account-ownership model for real records must be reviewed and tested before 2.0.
-
-## Accounting
-
-Net amount = milk sales + received amounts − advances − expenses. Remained is shown separately as outstanding and is not added to cash received.
-
-## Storage and backup
-
-Test entries and personal-mode preferences are stored in the current browser profile on this device. Clearing site data or losing the device can erase them. Download a JSON backup before clearing browser storage. Authentication does not synchronise the ledger.
+## Free tier
+Firestore Spark provides a daily free quota: 1 GiB stored data, 50,000 reads, 20,000 writes and 20,000 deletes per day, plus 10 GiB/month outbound transfer. When Spark quotas are exceeded, the relevant service is capped until the quota resets; usage does not automatically switch to paid billing. Do not attach a billing account or enable Cloud Storage.
 
 ## Development
-
-```
+```bash
 npm install
 npm run dev
 ```
