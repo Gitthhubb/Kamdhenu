@@ -5,7 +5,6 @@ import{isFirebaseConfigured,auth,googleProvider,db}from'./firebase';
 import{onAuthStateChanged,signInWithPopup,signOut}from'firebase/auth';
 import{collection,doc,setDoc,addDoc,deleteDoc,query,orderBy,onSnapshot,serverTimestamp}from'firebase/firestore';
 
-const STORE_KEY='kamdhenu-point-local-v1';
 const today=()=>{const d=new Date();return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-')};
 const money=n=>'₹'+new Intl.NumberFormat('hi-IN',{maximumFractionDigits:2}).format(Number(n)||0);
 const number=n=>new Intl.NumberFormat('hi-IN',{maximumFractionDigits:2}).format(Number(n)||0);
