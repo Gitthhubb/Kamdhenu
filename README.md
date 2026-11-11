@@ -1,23 +1,29 @@
 # कामधेनु
 
-A mobile-first Hindi milk and transaction ledger.
+Installable, mobile-first Hindi milk and transaction ledger.
 
 Live site: https://mymilk.onrender.com
 
-## Modules
-- **दूध:** Milkman, date, morning/evening, quantity, rate, cow/buffalo type, comments, edit/delete, and monthly CSV export.
-- **लेन-देन:** Received, remained (outstanding), advance, and expenses. Expense categories: paddy stalk, cattle feed, khali, chokar, wheat straw, and others.
-- Hero summary displays month-to-date milk quantity and net cash.
+## App features
+- Install as a Progressive Web App (PWA) on supported browsers.
+- Standalone app display, service-worker caching, and offline access after the first successful load.
+- Exactly two modules: **दूध** and **लेन-देन**.
+- Three date-based pages per month: days 1–10, 11–20, and 21–month-end. Each page covers about ten days, or roughly twenty morning/evening entries.
+- Records are append-only in the app: individual entries cannot be edited or deleted.
+- Milk entries include Milkman, date, morning/evening, quantity, rate, milk type, and comment.
+- Transactions include received, remained, advance, and expenses.
+- Expense categories: paddy stalk, cattle feed, khali, chokar, wheat straw, and others.
+- Monthly milk total and net amount in the hero summary.
+- JSON backup/restore and monthly milk CSV export.
 
-Net amount preserves the existing calculation: milk sales + received amounts − advances − expenses. Remained is tracked separately as an outstanding amount and is not added again to cash received.
+## Accounting
+Net amount = milk sales + received amounts − advances − expenses. Remained is shown separately as outstanding and is not added to cash received.
 
 ## Storage model
-The app is Supabase-free and stores records in this browser's Local Storage. Records stay in the same browser profile on the same device. They are not shared with other users, browsers, or devices. Clearing site data or losing the device can erase the ledger.
-
-Use **बैकअप लें** regularly to save a JSON backup. Use **बैकअप पुनर्स्थापित करें** to replace the current browser ledger from a backup.
+This edition is Supabase-free and stores records in the browser's Local Storage. Data belongs to the same browser profile on the same device; it is not synchronised between users or devices. Clearing site data or losing the device can erase records. Download a JSON backup regularly.
 
 ## Development
-\`\`\`bash
+\`\`\`
 npm install
 npm run dev
 \`\`\`
