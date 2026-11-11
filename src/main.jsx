@@ -107,6 +107,7 @@ function App(){
   </main>
   <footer>कामधेनु · सरल दैनिक लेखा</footer>
  </div>
+}
 function SaleForm({form,setForm,buyers,rates,save,editing,cancel}){
  const set=(k,v)=>setForm(f=>({...f,[k]:v})),changeMilk=v=>setForm(f=>({...f,milk_type:v,rate:String(rates[v+'_rate']??0)}));
  return <form className="entry-form" onSubmit={save}>
