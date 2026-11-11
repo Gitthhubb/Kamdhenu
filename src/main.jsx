@@ -41,6 +41,7 @@ function LedgerApp({user}){
  const [txForm,setTxForm]=useState(blankTransaction());
  const [personalMode,setPersonalMode]=useState(Boolean(initial.settings.personalMode));
  const [cloudReady,setCloudReady]=useState(false);
+ const [driveBusy,setDriveBusy]=useState(false);
  const [personalSetupOpen,setPersonalSetupOpen]=useState(false);
  const [personalSetup,setPersonalSetup]=useState(()=>({milkman:initial.settings.milkman||'',buffaloRate:String(initial.settings.buffaloRate??initial.rates.buffalo_rate??'')}));
  const [installPrompt,setInstallPrompt]=useState(null);
@@ -156,22 +157,71 @@ function LedgerApp({user}){
   const blob=new Blob([JSON.stringify({schema:4,exportedAt:new Date().toISOString(),...store},null,2)],{type:'application/json'});
   const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='kamdhenu-backup-'+today()+'.json';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);success('बैकअप डाउनलोड हो गया।');
  }
+ async function restoreBackupData(d){
+  if(!d||!Array.isArray(d.rows)||!Array.isArray(d.transactions)||!d.rates)throw new Error('यह कामधेनु का वैध बैकअप नहीं है।');
+  if(!window.confirm('क्या बैकअप की सभी प्रविष्टियाँ जोड़नी हैं? पहले से मौजूद रिकॉर्ड सुरक्षित रहेंगे।'))return;
+  for(const row of d.rows){
+   await addDoc(collection(db,'users',user.uid,'milk'),{date:row.sale_date,shift:row.shift||'morning',milkman:row.buyer,milkType:row.milk_type,quantity:Number(row.quantity),rate:Number(row.rate),amount:Number(row.amount),remarks:row.remarks||'',createdAt:serverTimestamp()});
+  }
+  for(const t of d.transactions){
+   await addDoc(collection(db,'users',user.uid,'transactions'),{date:t.date,kind:t.kind,amount:Number(t.amount),party:t.party||'',category:t.category||'',remarks:t.remarks||'',createdAt:serverTimestamp()});
+  }
+  await persist({...store,rates:{...store.rates,...d.rates},buyers:[...new Set([...store.buyers,...(d.buyers||[])])],settings:{...store.settings,...(d.settings||{})}});
+  success('बैकअप की प्रविष्टियाँ जोड़ दी गईं।');
+ }
  function importBackup(e){
   const file=e.target.files?.[0];if(!file)return;
   const reader=new FileReader();
   reader.onload=async()=>{
-   try{
-    const d=JSON.parse(String(reader.result));
-    if(!d||!Array.isArray(d.rows)||!Array.isArray(d.transactions)||!d.rates)throw new Error('यह कामधेनु का वैध बैकअप नहीं है।');
-    if(!window.confirm('क्या बैकअप की सभी प्रविष्टियाँ जोड़नी हैं? पहले से मौजूद रिकॉर्ड सुरक्षित रहेंगे।'))return;
-    for(const row of d.rows)await addDoc(collection(db,'users',user.uid,'milk'),{date:row.sale_date,shift:row.shift||'morning',milkman:row.buyer,milkType:row.milk_type,quantity:Number(row.quantity),rate:Number(row.rate),amount:Number(row.amount),remarks:row.remarks||'',createdAt:serverTimestamp()});
-    for(const t of d.transactions)await addDoc(collection(db,'users',user.uid,'transactions'),{date:t.date,kind:t.kind,amount:Number(t.amount),party:t.party||'',category:t.category||'',remarks:t.remarks||'',createdAt:serverTimestamp()});
-    await persist({...store,rates:{...store.rates,...d.rates},buyers:[...new Set([...store.buyers,...(d.buyers||[])])],settings:{...store.settings,...(d.settings||{})}});
-    success('बैकअप की प्रविष्टियाँ जोड़ दी गईं।');
-   }catch(err){report(err)}finally{e.target.value=''}
+   try{await restoreBackupData(JSON.parse(String(reader.result)))}
+   catch(err){report(err)}finally{e.target.value=''}
   };
   reader.readAsText(file);
  }
+ async function backupToDrive(accessToken){
+  const payload={schema:4,exportedAt:new Date().toISOString(),...store};
+  const find=await fetch("https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&q=name%3D%27kamdhenu-backup.json%27%20and%20trashed%3Dfalse&fields=files(id,name)",{headers:{Authorization:'Bearer '+accessToken}});
+  if(!find.ok)throw new Error('Google Drive में बैकअप फ़ाइल की जाँच नहीं हो सकी।');
+  const matches=(await find.json()).files||[];
+  const existing=matches[0];
+  const boundary='kamdhenu_drive_boundary_2026';
+  const metadata=existing?{name:'kamdhenu-backup.json'}:{name:'kamdhenu-backup.json',mimeType:'application/json',parents:['appDataFolder']};
+  const body='--'+boundary+'\\r\\nContent-Type: application/json; charset=UTF-8\\r\\n\\r\\n'+JSON.stringify(metadata)+'\\r\\n--'+boundary+'\\r\\nContent-Type: application/json\\r\\n\\r\\n'+JSON.stringify(payload)+'\\r\\n--'+boundary+'--';
+  const url=existing?'https://www.googleapis.com/upload/drive/v3/files/'+existing.id+'?uploadType=multipart':'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart';
+  const response=await fetch(url,{method:existing?'PATCH':'POST',headers:{Authorization:'Bearer '+accessToken,'Content-Type':'multipart/related; boundary='+boundary},body});
+  if(!response.ok)throw new Error('Google Drive में बैकअप सुरक्षित नहीं हो सका।');
+  success('Google Drive में बैकअप सुरक्षित हो गया।');
+ }
+ async function restoreFromDrive(accessToken){
+  const find=await fetch("https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&q=name%3D%27kamdhenu-backup.json%27%20and%20trashed%3Dfalse&fields=files(id,name)",{headers:{Authorization:'Bearer '+accessToken}});
+  if(!find.ok)throw new Error('Google Drive बैकअप की जाँच नहीं हो सकी।');
+  const matches=(await find.json()).files||[];
+  if(!matches.length)throw new Error('Google Drive में कामधेनु का बैकअप नहीं मिला।');
+  const response=await fetch('https://www.googleapis.com/drive/v3/files/'+matches[0].id+'?alt=media',{headers:{Authorization:'Bearer '+accessToken}});
+  if(!response.ok)throw new Error('Google Drive बैकअप डाउनलोड नहीं हो सका।');
+  await restoreBackupData(await response.json());
+ }
+ function requestDriveAccess(action){
+  const clientId=import.meta.env.VITE_GOOGLE_CLIENT_ID;
+  if(!clientId)return report('Drive बैकअप के लिए Render पर VITE_GOOGLE_CLIENT_ID निर्धारित करें।');
+  if(!window.google?.accounts?.oauth2)return report('Google Drive अनुमति सेवा लोड नहीं हुई। इंटरनेट कनेक्शन जाँचें।');
+  setDriveBusy(true);
+  try{
+   const client=window.google.accounts.oauth2.initTokenClient({
+    client_id:clientId,
+    scope:'https://www.googleapis.com/auth/drive.appdata',
+    callback:async response=>{
+     try{
+      if(response.error||!response.access_token)throw new Error(response.error_description||'Google Drive अनुमति नहीं मिली।');
+      await action(response.access_token);
+     }catch(err){report(err)}finally{setDriveBusy(false)}
+    },
+    error_callback:err=>{setDriveBusy(false);report(err?.message||'Google Drive अनुमति विफल रही।')}
+   });
+   client.requestAccessToken({hint:user.email||undefined});
+  }catch(err){setDriveBusy(false);report(err)}
+ }
+
  async function saveMilk(e){
   e.preventDefault();
   const quantity=Number(form.quantity),rate=Number(personalMode?store.settings.buffaloRate:form.rate),milkman=(personalMode?store.settings.milkman:form.buyer).trim(),milkType=personalMode?'buffalo':form.milk_type;
@@ -229,6 +279,7 @@ function LedgerApp({user}){
  const rangeLabel=periodStartDay+'–'+periodEndDay;
  const periodLabel=periodPage===1?'पहला पृष्ठ':periodPage===2?'दूसरा पृष्ठ':'तीसरा पृष्ठ';
 
+ if(!cloudReady)return <div className="auth-shell"><section className="auth-card"><div className="brand-mark">क</div><h1>कामधेनु</h1><p>आपका बही-खाता लोड हो रहा है…</p></section></div>;
  return <div className="app">
   <header>
    <div className="brand-mark">क</div>
@@ -239,6 +290,10 @@ function LedgerApp({user}){
    <button className="header-action" onClick={exportBackup}>बैकअप लें</button>
   </header>
   <div className="account-bar"><span title={user?.email}>{user?.email}</span><button type="button" onClick={()=>signOut(auth)}>साइन आउट</button></div>
+  <div className="drive-actions">
+   <button type="button" className="secondary" onClick={()=>requestDriveAccess(backupToDrive)} disabled={driveBusy}>{driveBusy?'प्रक्रिया जारी है…':'Drive में बैकअप'}</button>
+   <button type="button" className="secondary" onClick={()=>requestDriveAccess(restoreFromDrive)} disabled={driveBusy}>Drive से पुनर्स्थापित करें</button>
+  </div>
   <div className="storage-notice">परीक्षण संस्करण · प्रविष्टियाँ आपके Google खाते के साथ Firestore में सिंक होती हैं। वास्तविक हिसाब Version 2.0 के स्थिर विमोचन के बाद दर्ज करें।</div>
   <section className="mode-strip">
    <div><b>माँ का व्यक्तिगत मोड</b><small>केवल भैंस · निश्चित दर · तय दूधवाला</small></div>
