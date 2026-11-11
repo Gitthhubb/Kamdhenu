@@ -153,3 +153,16 @@ test('deduplicates mixed ID-bearing and legacy copies regardless of backup order
     expected,
   );
 });
+
+test('does not reuse Firestore-reserved document IDs', () => {
+  const existing = [{ id: 'tx-existing', ...transaction() }];
+  const incoming = [
+    { id: '__system__', ...transaction() },
+    { id: '__legacy__', ...transaction({ amount: 325 }) },
+  ];
+
+  assert.deepEqual(
+    planRestoreMerge(incoming, existing, normalizeTransactionRecord),
+    [{ id: null, record: transaction({ amount: 325 }) }],
+  );
+});
