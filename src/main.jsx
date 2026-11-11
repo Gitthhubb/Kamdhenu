@@ -49,20 +49,21 @@ function App(){
   async function load(){
     if(!profile?.active)return;
     L(true);
-    const requests=[
-      supabase.from('entries').select('*').order('sale_date',{ascending:false}).order('created_at',{ascending:false}),
-      supabase.from('milk_rates').select('*').eq('id',1).single(),
-      supabase.from('buyers').select('*').eq('id',1).single(),
-      profile.role==='admin'?supabase.from('allowed_emails').select('*').order('email'):Promise.resolve({data:[],error:null})
-    ];
-    const [s,r,b,a]=await Promise.all(requests);
-    const failures=[s,r,b,a].filter(x=>x.error);
-    if(failures.length)report(failures[0].error);
-    R(s.data||[]);
-    if(r.data){T(r.data);if(!edit)F(f=>({...f,rate:String(r.data[f.milk_type+'_rate']??0)}));}
-    if(b.data)B(b.data.names||[]);
-    A(a.data||[]);
-    L(false);
+    try{
+      const requests=[
+        supabase.from('entries').select('*').order('sale_date',{ascending:false}).order('created_at',{ascending:false}),
+        supabase.from('milk_rates').select('*').eq('id',1).single(),
+        supabase.from('buyers').select('*').eq('id',1).single(),
+        profile.role==='admin'?supabase.from('allowed_emails').select('*').order('email'):Promise.resolve({data:[],error:null})
+      ];
+      const [sales,r,b,a]=await Promise.all(requests);
+      const failures=[sales,r,b,a].filter(x=>x.error);
+      if(failures.length)report(failures[0].error);
+      if(sales.data)R(sales.data);
+      if(r.data){T(r.data);if(!edit)F(f=>({...f,rate:String(r.data[f.milk_type+'_rate']??0)}));}
+      if(b.data)B(b.data.names||[]);
+      A(a.data||[]);
+    }catch(err){report(err)}finally{L(false)}
   }
   useEffect(()=>{if(profile?.active)load()},[profile]);
 
@@ -76,7 +77,7 @@ function App(){
     e.preventDefault();E('');N('');
     const q=Number(form.quantity),rate=Number(form.rate);
     if(!form.sale_date||!form.buyer)return report('Select a date and buyer.');
-    if(!Number.isFinite(q)||q<=0||!Number.isFinite(rate)||rate<0)return report('Enter a quantity greater than zero and a valid non-negative rate.');
+    if(!String(form.quantity).trim()||!String(form.rate).trim()||!Number.isFinite(q)||q<=0||!Number.isFinite(rate)||rate<0)return report('Enter a quantity greater than zero and a valid non-negative rate.');
     if(!form.buyer.trim())return report('Buyer name cannot be blank.');
     const payload={sale_date:form.sale_date,buyer:form.buyer,milk_type:form.milk_type,quantity:q,rate,amount:Math.round(q*rate*100)/100,remarks:form.remarks.trim()||null,updated_at:new Date().toISOString()};
     Z(true);
@@ -97,12 +98,14 @@ function App(){
   function exportCsv(){
     const data=rows.filter(x=>x.sale_date.startsWith(month));
     const lines=[['Date','Buyer','Milk','Litres','Rate','Amount','Remarks'],...data.map(x=>[x.sale_date,x.buyer,x.milk_type,x.quantity,x.rate,x.amount,x.remarks||''])];
-    const csv=lines.map(row=>row.map(x=>'"'+String(x??'').replaceAll('"','""')+'"').join(',')).join('\r\n');
+    const csv=lines.map(row=>row.map(x=>{let value=String(x??'');if(/^[\\t\\r ]*[=+@-]/.test(value))value="'"+value;return '"'+value.replaceAll('"','""')+'"'}).join(',')).join('\r\n');
     const url=URL.createObjectURL(new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'}));
     const a=document.createElement('a');a.href=url;a.download=`kamdhenu-${month}.csv`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
   }
   async function saveRates(){
-    Z(true);const{error}=await supabase.from('milk_rates').update({cow_rate:Number(rates.cow_rate),buffalo_rate:Number(rates.buffalo_rate),updated_at:new Date().toISOString()}).eq('id',1);Z(false);
+    const cow=Number(rates.cow_rate),buffalo=Number(rates.buffalo_rate);
+    if(!String(rates.cow_rate).trim()||!String(rates.buffalo_rate).trim()||!Number.isFinite(cow)||!Number.isFinite(buffalo)||cow<0||buffalo<0)return report('Enter valid non-negative rates for both milk types.');
+    Z(true);const{error}=await supabase.from('milk_rates').update({cow_rate:cow,buffalo_rate:buffalo,updated_at:new Date().toISOString()}).eq('id',1);Z(false);
     if(error)report(error);else{success('Milk rates saved.');await load()}
   }
   async function saveBuyers(){
@@ -114,11 +117,13 @@ function App(){
   async function addAccess(e){
     e.preventDefault();const clean=email.trim().toLowerCase();
     if(!clean)return;
-    Z(true);const{error}=await supabase.from('allowed_emails').upsert({email:clean,role:'user',active:true},{onConflict:'email'});Z(false);
+    if(clean===user.email.toLowerCase())return report('This account already has administrator access.');
+    const existing=allowed.find(a=>a.email.toLowerCase()===clean);
+    Z(true);const{error}=await supabase.from('allowed_emails').upsert({email:clean,role:existing?.role==='admin'?'admin':'user',active:true},{onConflict:'email'});Z(false);
     if(error)report(error);else{Q('');success('Account authorised.');await load()}
   }
   async function toggleAccess(a){
-    if(a.email.toLowerCase()===user.email.toLowerCase())return report('You cannot revoke the account currently administering this register.');
+    if(a.email.toLowerCase()===user.email.toLowerCase())return report('You cannot revoke the account currently administering this register.');\n    if(a.role==='admin')return report('Administrator access must be changed directly in Supabase, not through the user access list.');
     Z(true);const{error}=await supabase.from('allowed_emails').update({active:!a.active}).eq('email',a.email);Z(false);
     if(error)report(error);else{success(a.active?'Access revoked.':'Access restored.');await load()}
   }
