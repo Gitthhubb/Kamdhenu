@@ -186,7 +186,7 @@ function LedgerApp({user}){
   const existing=matches[0];
   const boundary='kamdhenu_drive_boundary_2026';
   const metadata=existing?{name:'kamdhenu-backup.json'}:{name:'kamdhenu-backup.json',mimeType:'application/json',parents:['appDataFolder']};
-  const body='--'+boundary+'\\r\\nContent-Type: application/json; charset=UTF-8\\r\\n\\r\\n'+JSON.stringify(metadata)+'\\r\\n--'+boundary+'\\r\\nContent-Type: application/json\\r\\n\\r\\n'+JSON.stringify(payload)+'\\r\\n--'+boundary+'--';
+  const body='--'+boundary+'\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n'+JSON.stringify(metadata)+'\r\n--'+boundary+'\r\nContent-Type: application/json\r\n\r\n'+JSON.stringify(payload)+'\r\n--'+boundary+'--';
   const url=existing?'https://www.googleapis.com/upload/drive/v3/files/'+existing.id+'?uploadType=multipart':'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart';
   const response=await fetch(url,{method:existing?'PATCH':'POST',headers:{Authorization:'Bearer '+accessToken,'Content-Type':'multipart/related; boundary='+boundary},body});
   if(!response.ok)throw new Error('Google Drive में बैकअप सुरक्षित नहीं हो सका।');
@@ -248,7 +248,7 @@ function LedgerApp({user}){
  function exportCsv(){
   const data=store.rows.filter(x=>x.sale_date.startsWith(month)).sort(sortNewest);
   const lines=[['दिनांक','दूधवाला','समय','दूध का प्रकार','मात्रा (लीटर)','दर','राशि','टिप्पणी'],...data.map(x=>[x.sale_date,x.buyer,shiftLabel(x.shift),milkLabel(x.milk_type),x.quantity,x.rate,x.amount,x.remarks||''])];
-  const csv=lines.map(row=>row.map(x=>{let v=String(x??'');if(/^[\\t\\r ]*[=+@-]/.test(v))v="'"+v;return '"'+v.replaceAll('"','""')+'"'}).join(',')).join('\\r\\n');
+  const csv=lines.map(row=>row.map(x=>{let v=String(x??'');if(/^[\\t\\r ]*[=+@-]/.test(v))v="'"+v;return '"'+v.replaceAll('"','""')+'"'}).join(',')).join('\r\n');
   const url=URL.createObjectURL(new Blob(['\\ufeff'+csv],{type:'text/csv;charset=utf-8'})),a=document.createElement('a');a.href=url;a.download='kamdhenu-doodh-'+month+'.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
  }
 
