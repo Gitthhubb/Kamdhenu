@@ -3,9 +3,9 @@ import{createRoot}from'react-dom/client';
 import{supabase,configured}from'./supabase.js';
 import'./style.css';
 
-const today=()=>new Date().toLocaleDateString('en-CA');
+const today=()=>{const d=new Date();return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-')};
 const money=n=>new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR'}).format(Number(n)||0);
-const blankForm=()=>({sale_date:today(),buyer:'Milkman 1',milk_type:'cow',quantity:'',rate:'',remarks:''});
+const blankForm=(rates={cow_rate:0})=>({sale_date:today(),buyer:'Milkman 1',milk_type:'cow',quantity:'',rate:String(rates.cow_rate??0),remarks:''});
 const messageFor=(message)=>{
   if(!message)return '';
   if(/provider is not enabled/i.test(message))return 'Google sign-in is not enabled yet. Enable Google in Supabase Authentication → Providers and add the Google OAuth Client ID and Secret.';
@@ -18,7 +18,7 @@ function App(){
     [rates,T]=useState({cow_rate:0,buffalo_rate:0}),[buyers,B]=useState(['Milkman 1','Milkman 2','Milkman 3']),
     [allowed,A]=useState([]),[tab,V]=useState('Sales'),[month,M]=useState(today().slice(0,7)),
     [error,E]=useState(''),[notice,N]=useState(''),[email,Q]=useState(''),
-    [form,F]=useState(blankForm()),[edit,X]=useState(null),[loading,L]=useState(false),
+    [form,F]=useState(blankForm()),[edit,X]=useState(null),[loading,L]=useState(false),[profileLoading,PL]=useState(false),[profileRetry,PR]=useState(0),
     [busy,Z]=useState(false);
 
   function report(err){E(messageFor(err?.message||err||''));N('');}
@@ -35,15 +35,16 @@ function App(){
     let cancelled=false;
     async function getProfile(){
       P(null);
-      if(!user)return;
+      if(!user){PL(false);return;}
+      PL(true);
       const{data,error}=await supabase.from('profiles').select('*').eq('id',user.id).maybeSingle();
       if(cancelled)return;
       if(error)report(error);
-      P(data);
+      P(data);PL(false);
     }
-    getProfile();
+    getProfile().catch(err=>{if(!cancelled){report(err);PL(false)}});
     return()=>{cancelled=true};
-  },[user]);
+  },[user,profileRetry]);
 
   async function load(){
     if(!profile?.active)return;
@@ -58,7 +59,7 @@ function App(){
     const failures=[s,r,b,a].filter(x=>x.error);
     if(failures.length)report(failures[0].error);
     R(s.data||[]);
-    if(r.data)T(r.data);
+    if(r.data){T(r.data);if(!edit)F(f=>({...f,rate:String(r.data[f.milk_type+'_rate']??0)}));}
     if(b.data)B(b.data.names||[]);
     A(a.data||[]);
     L(false);
@@ -82,7 +83,7 @@ function App(){
     const res=edit?await supabase.from('entries').update(payload).eq('id',edit):await supabase.from('entries').insert({...payload,created_by:user.id});
     Z(false);
     if(res.error)return report(res.error);
-    X(null);F(blankForm());success(edit?'Sale updated.':'Sale recorded.');await load();
+    X(null);F(blankForm(rates));success(edit?'Sale updated.':'Sale recorded.');await load();
   }
   async function remove(id){
     if(!window.confirm('Delete this entry? This cannot be undone.'))return;
@@ -92,7 +93,7 @@ function App(){
   function beginEdit(entry){
     X(entry.id);F({sale_date:entry.sale_date,buyer:entry.buyer,milk_type:entry.milk_type,quantity:String(entry.quantity),rate:String(entry.rate),remarks:entry.remarks||''});V('Sales');window.scrollTo({top:0,behavior:'smooth'});
   }
-  function cancelEdit(){X(null);F(blankForm());E('');N('')}
+  function cancelEdit(){X(null);F(blankForm(rates));E('');N('')}
   function exportCsv(){
     const data=rows.filter(x=>x.sale_date.startsWith(month));
     const lines=[['Date','Buyer','Milk','Litres','Rate','Amount','Remarks'],...data.map(x=>[x.sale_date,x.buyer,x.milk_type,x.quantity,x.rate,x.amount,x.remarks||''])];
@@ -124,7 +125,8 @@ function App(){
 
   if(!configured)return <main className="login"><h1>कामधेनु Point</h1><p>Supabase configuration is missing. Check the Render environment variables.</p></main>;
   if(!user)return <main className="login"><h1>कामधेनु Point</h1><p>दूध बिक्री और हिसाब-किताब</p><button disabled={busy} onClick={signIn}>{busy?'Connecting…':'Continue with Google'}</button>{error&&<p className="error" role="alert">{error}</p>}</main>;
-  if(!profile)return <main className="login"><h1>कामधेनु Point</h1><p>Checking account access…</p>{error&&<p className="error" role="alert">{error}</p>}</main>;
+  if(profileLoading)return <main className="login"><h1>कामधेनु Point</h1><p>Checking account access…</p>{error&&<p className="error" role="alert">{error}</p>}</main>;
+  if(!profile)return <main className="login"><h1>कामधेनु Point</h1><p>Account profile could not be loaded.</p>{error&&<p className="error" role="alert">{error}</p>}<button onClick={()=>PR(n=>n+1)}>Retry</button><button className="secondary" onClick={()=>supabase.auth.signOut()}>Sign out</button></main>;
   if(!profile.active)return <main className="login"><h1>Access pending</h1><p>{user.email} is not authorised yet.</p><p>Ask the administrator to authorise this exact Google email address.</p><button onClick={()=>supabase.auth.signOut()}>Sign out</button>{error&&<p className="error" role="alert">{error}</p>}</main>;
 
   const admin=profile.role==='admin',filtered=rows.filter(x=>x.sale_date.startsWith(month));
