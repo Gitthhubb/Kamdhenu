@@ -24,20 +24,9 @@ Google authentication is configured in the Supabase dashboard, not in the React 
 The OAuth Client Secret must be entered directly into Supabase. Do not send it in chat or commit it to GitHub. Until these steps are completed, the app will display a specific provider-configuration error.
 
 ## First administrator
-The designated administrator email is `upscpremcq@gmail.com`. After Google sign-in has been enabled, that account must complete its first sign-in so Supabase creates its profile. Then execute this in the Supabase SQL Editor:
+The designated administrator email `upscpremcq@gmail.com` is already present in the active administrator allowlist in this Supabase project. The database trigger checks that allowlist when a Google user first signs in and automatically creates an active administrator profile for that exact email. No manual SQL bootstrap is required.
 
-```sql
-update public.profiles
-set role = 'admin', active = true
-where lower(email) = lower('upscpremcq@gmail.com');
-
-insert into public.allowed_emails (email, role, active)
-values ('upscpremcq@gmail.com', 'admin', true)
-on conflict (email) do update
-set role = 'admin', active = true;
-```
-
-Sign out and sign in again. The administrator can subsequently authorise or revoke other Google accounts through the Access tab. Never automatically grant administrator privileges to the first person to visit a public URL.
+After Google sign-in has been enabled, sign in with that exact Google account. The administrator can then authorise or revoke ordinary user accounts through the Access tab. Administrator accounts are deliberately protected from changes in that user-facing screen; change administrator privileges directly in Supabase. Never automatically grant administrator privileges to the first person to visit a public URL.
 
 ## Features
 - Record date, buyer, milk type, litres, rate, calculated amount and remarks.
