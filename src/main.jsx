@@ -110,7 +110,8 @@ function App(){
  const advanced=monthTransactions.filter(x=>x.kind==='advance');
  const expenses=monthTransactions.filter(x=>x.kind==='expense');
  const receivedTotal=total(received),remainedTotal=total(remained),advancedTotal=total(advanced),expenseTotal=total(expenses);
- const milkSalesTotal=total(monthMilk);\n const netAmount=milkSalesTotal+receivedTotal-advancedTotal-expenseTotal;
+ const milkSalesTotal=total(monthMilk);
+ const netAmount=milkSalesTotal+receivedTotal-advancedTotal-expenseTotal;
  const milkToday=qty(todayMilk),milkToDate=qty(monthMilk);
  const milkmanLabel='दूधवाला (Milkman)';
 
