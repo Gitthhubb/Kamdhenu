@@ -5,7 +5,7 @@ import'./style.css';
 
 const today=()=>{const d=new Date();return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-')};
 const money=n=>new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR'}).format(Number(n)||0);
-const blankForm=(rates={cow_rate:0})=>({sale_date:today(),buyer:'Milkman 1',milk_type:'cow',quantity:'',rate:String(rates.cow_rate??0),remarks:''});
+const blankForm=(rates=null)=>({sale_date:today(),buyer:'Milkman 1',milk_type:'cow',quantity:'',rate:rates?String(rates.cow_rate??0):'',remarks:''});
 const messageFor=(message)=>{
   if(!message)return '';
   if(/provider is not enabled/i.test(message))return 'Google sign-in is not enabled yet. Enable Google in Supabase Authentication → Providers and add the Google OAuth Client ID and Secret.';
@@ -60,7 +60,7 @@ function App(){
       const failures=[sales,r,b,a].filter(x=>x.error);
       if(failures.length)report(failures[0].error);
       if(sales.data)R(sales.data);
-      if(r.data){T(r.data);if(!edit)F(f=>({...f,rate:String(r.data[f.milk_type+'_rate']??0)}));}
+      if(r.data){T(r.data);if(!edit&&!String(form.rate).trim())F(f=>({...f,rate:String(r.data[f.milk_type+'_rate']??0)}));}
       if(b.data)B(b.data.names||[]);
       A(a.data||[]);
     }catch(err){report(err)}finally{L(false)}
@@ -120,7 +120,8 @@ function App(){
     if(!clean)return;
     if(clean===user.email.toLowerCase())return report('This account already has administrator access.');
     const existing=allowed.find(a=>a.email.toLowerCase()===clean);
-    Z(true);const{error}=await supabase.from('allowed_emails').upsert({email:clean,role:existing?.role==='admin'?'admin':'user',active:true},{onConflict:'email'});Z(false);
+    if(existing?.role==='admin')return report('That account already has administrator privileges; manage administrator accounts directly in Supabase.');
+    Z(true);const{error}=await supabase.from('allowed_emails').upsert({email:clean,role:'user',active:true},{onConflict:'email'});Z(false);
     if(error)report(error);else{Q('');success('Account authorised.');await load()}
   }
   async function toggleAccess(a){
@@ -152,7 +153,7 @@ function App(){
       {tab==='Ledger'&&<><label className="month-picker">Month <input type="month" value={month} onChange={e=>M(e.target.value)}/></label><button onClick={exportCsv}>Export CSV</button><h2>{qty(filtered).toFixed(2)} litres · {money(total(filtered))}</h2><Rows rows={filtered} admin={admin} edit={beginEdit} remove={remove}/></>}
       {tab==='Rates'&&<section className="panel"><h2>Rates per litre</h2>{['cow_rate','buffalo_rate'].map(k=><label key={k}>{k==='cow_rate'?'Cow':'Buffalo'} ₹ <input type="number" min="0" step=".01" disabled={!admin} value={rates[k]??0} onChange={e=>T({...rates,[k]:e.target.value})}/></label>)}{admin&&<button disabled={busy} onClick={saveRates}>Save rates</button>}<p>Historical entries retain the rate applied when they were recorded.</p></section>}
       {tab==='Buyers'&&<section className="panel"><h2>Buyers</h2><textarea disabled={!admin} rows="6" value={buyers.join('\n')} onChange={e=>B(e.target.value.split('\n'))}/>{admin&&<button disabled={busy} onClick={saveBuyers}>Save buyers</button>}</section>}
-      {tab==='Access'&&admin&&<section className="panel"><h2>Authorised Google accounts</h2><form onSubmit={addAccess}><input type="email" required placeholder="name@gmail.com" value={email} onChange={e=>Q(e.target.value)}/><button disabled={busy}>Authorise account</button></form>{allowed.map(a=><p className="access-row" key={a.email}>{a.email} · {a.active?'Active':'Revoked'} <button disabled={busy||a.email.toLowerCase()===user.email.toLowerCase()} onClick={()=>toggleAccess(a)}>{a.active?'Revoke':'Restore'}</button></p>)}</section>}
+      {tab==='Access'&&admin&&<section className="panel"><h2>Authorised Google accounts</h2><form onSubmit={addAccess}><input type="email" required placeholder="name@gmail.com" value={email} onChange={e=>Q(e.target.value)}/><button disabled={busy}>Authorise account</button></form>{allowed.map(a=><p className="access-row" key={a.email}>{a.email} · {a.active?'Active':'Revoked'} <button disabled={busy||a.email.toLowerCase()===user.email.toLowerCase()||a.role==='admin'} onClick={()=>toggleAccess(a)}>{a.active?'Revoke':'Restore'}</button></p>)}</section>}
     </main>
   </div>;
 }
