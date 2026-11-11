@@ -4,3 +4,5 @@
 .record{position:relative;padding-right:70px}.record-actions{position:absolute;right:8px;top:8px;display:flex;gap:5px}.record-actions button{padding:6px 8px;font-size:10px}.record-actions .delete-record{background:#fff0ee;color:#a62d2d;border:1px solid #f0d3d0}.account-bar{gap:8px}.google-auth-button{width:100%;display:flex;align-items:center;justify-content:center;gap:10px;background:#fff;color:#303a32;border:1px solid #dce4dc;padding:12px;font-size:13px}.google-auth-button svg{width:18px;height:18px}.auth-note{font-size:10px;color:#748075;line-height:1.5}
 
 .record{position:relative;padding-right:72px}.record-actions{position:absolute;right:8px;top:8px;display:flex;gap:5px}.record-actions button{padding:6px 8px;font-size:10px}.record-actions .delete-record{background:#fff0ee;color:#a62d2d;border:1px solid #f0d3d0}.google-auth-button{width:100%;background:#fff;color:#303a32;border:1px solid #dce4dc;padding:12px;font-size:13px}.auth-note{font-size:10px;color:#748075;line-height:1.5}
+
+.drive-actions{display:flex;gap:6px;margin:7px 10px 0}.drive-actions button{flex:1;padding:8px 5px;font-size:10px}
