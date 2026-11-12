@@ -139,9 +139,11 @@ function validateSettings(value) {
 export function validateBackupPayload(payload) {
   if (!isObject(payload)
     || !Array.isArray(payload.rows)
-    || !Array.isArray(payload.transactions)
-    || !isObject(payload.rates)) {
+    || !Array.isArray(payload.transactions)) {
     fail('यह वैध कामधेनु JSON बैकअप नहीं है।');
+  }
+  if (!isObject(payload.rates)) {
+    fail('बैकअप की दरें सही प्रारूप में नहीं हैं।');
   }
 
   return {
