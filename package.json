@@ -11,12 +11,15 @@
     "test": "node --test"
   },
   "dependencies": {
-    "firebase": "^11.10.0",
+    "firebase": "12.17.0",
     "react": "18.3.1",
     "react-dom": "18.3.1"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "4.3.4",
     "vite": "6.4.6"
+  },
+  "overrides": {
+    "@grpc/grpc-js": "1.14.7"
   }
 }

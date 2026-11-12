@@ -3,6 +3,8 @@ import{createRoot}from'react-dom/client';
 import'./style.css';
 import{getCloudLoadingError}from'./cloud-error';
 import{getGuestSignInError,getGuestLinkError}from'./guest-auth-errors';
+import{validateBackupPayload}from'./backup-validation';
+import{getMilkSaveFeedback}from'./milk-save-feedback';
 import{isFirebaseConfigured,auth,googleProvider,db}from'./firebase';
 import{onAuthStateChanged,signInWithPopup,signInAnonymously,linkWithPopup,signOut}from'firebase/auth';
 import{normalizeMilkRecord,normalizeTransactionRecord,planRestoreMerge}from'./restore-merge';
@@ -171,15 +173,15 @@ function LedgerApp({user}){
   const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='kamdhenu-backup-'+today()+'.json';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);success('बैकअप डाउनलोड हो गया।');
  }
  async function restoreBackupData(d){
-  if(!d||!Array.isArray(d.rows)||!Array.isArray(d.transactions)||!d.rates)throw new Error('यह कामधेनु का वैध बैकअप नहीं है।');
+  const backup=validateBackupPayload(d);
   if(!window.confirm('क्या बैकअप की केवल नई प्रविष्टियाँ जोड़नी हैं? मौजूदा प्रविष्टियाँ बदली या हटाई नहीं जाएँगी।'))return;
   const milkCollection=collection(db,'users',user.uid,'milk');
   const transactionCollection=collection(db,'users',user.uid,'transactions');
   const [milkSnapshot,transactionSnapshot]=await Promise.all([getDocs(milkCollection),getDocs(transactionCollection)]);
   const milkExisting=milkSnapshot.docs.map(snapshot=>({id:snapshot.id,...snapshot.data()}));
   const transactionExisting=transactionSnapshot.docs.map(snapshot=>({id:snapshot.id,...snapshot.data()}));
-  const milkAdditions=planRestoreMerge(d.rows,milkExisting,normalizeMilkRecord);
-  const transactionAdditions=planRestoreMerge(d.transactions,transactionExisting,normalizeTransactionRecord);
+  const milkAdditions=planRestoreMerge(backup.rows,milkExisting,normalizeMilkRecord);
+  const transactionAdditions=planRestoreMerge(backup.transactions,transactionExisting,normalizeTransactionRecord);
   for(const item of milkAdditions){
    const payload={...item.record,createdAt:serverTimestamp()};
    if(item.id)await setDoc(doc(milkCollection,item.id),payload);
@@ -190,7 +192,15 @@ function LedgerApp({user}){
    if(item.id)await setDoc(doc(transactionCollection,item.id),payload);
    else await addDoc(transactionCollection,payload);
   }
-  await persist({...store,rates:{...store.rates,...d.rates},buyers:[...new Set([...store.buyers,...(d.buyers||[])])],settings:{...store.settings,...(d.settings||{})}});
+  const profileSaved=await persist({
+   ...store,
+   rates:{...store.rates,...backup.rates},
+   buyers:[...new Set([...store.buyers,...backup.buyers])],
+   settings:{...store.settings,...backup.settings},
+  });
+  if(!profileSaved){
+   throw new Error('बैकअप की प्रविष्टियाँ जोड़ी गई हैं, लेकिन दरें और सेटिंग्स सुरक्षित नहीं हो सकीं। JSON बैकअप दोबारा पुनर्स्थापित करें; जो प्रविष्टियाँ पहले जुड़ चुकी हैं वे दोहराई नहीं जाएँगी।');
+  }
   success(`बैकअप से ${milkAdditions.length} दूध और ${transactionAdditions.length} लेन-देन की नई प्रविष्टियाँ जोड़ी गईं।`);
  }
  function importBackup(e){
@@ -253,9 +263,10 @@ function LedgerApp({user}){
   if(!form.sale_date||!milkman||!String(form.quantity).trim()||!String(form.rate).trim()||!Number.isFinite(quantity)||quantity<=0||!Number.isFinite(rate)||rate<0)return report('दिनांक, दूधवाले का नाम, शून्य से अधिक मात्रा और वैध दर दर्ज करें।');
   try{
    await addDoc(collection(db,'users',user.uid,'milk'),{date:form.sale_date,shift:form.shift||'morning',milkman,milkType,quantity,rate,amount:Math.round(quantity*rate*100)/100,remarks:form.remarks.trim(),createdAt:serverTimestamp()});
-   await persist({...store,buyers:[...new Set([...store.buyers,milkman])],rates:{...store.rates,[milkType+'_rate']:rate}});
+   const profileSaved=await persist({...store,buyers:[...new Set([...store.buyers,milkman])],rates:{...store.rates,[milkType+'_rate']:rate}});
    setForm(personalMode?{...blankForm(store.rates),milk_type:'buffalo',buyer:store.settings.milkman,rate:String(store.settings.buffaloRate)}:blankForm(store.rates));
-   success('नई दूध प्रविष्टि सुरक्षित हो गई।');
+   const feedback=getMilkSaveFeedback(profileSaved);
+   if(profileSaved)success(feedback.message);else report(feedback.message);
   }catch(err){report(err)}
  }
  async function saveTransaction(e){
