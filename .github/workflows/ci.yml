@@ -17,7 +17,5 @@ jobs:
       - run: npm install
       - run: npm test
       - run: npm run check
-      - name: Audit dependency tree
-        run: |
-          npm audit --json > npm-audit.json || true
-          node -e "const a=require('./npm-audit.json'); console.log(JSON.stringify({metadata:a.metadata?.vulnerabilities, advisories:Object.entries(a.vulnerabilities||{}).map(([name,v])=>({name,severity:v.severity,range:v.range,fixAvailable:v.fixAvailable,via:v.via.map(x=>typeof x==='string'?x:x.title)}))},null,2))"
+      - name: Enforce dependency security audit
+        run: npm audit --audit-level=high
