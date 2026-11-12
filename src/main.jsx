@@ -2,8 +2,9 @@ import React,{useEffect,useState}from'react';
 import{createRoot}from'react-dom/client';
 import'./style.css';
 import{getCloudLoadingError}from'./cloud-error';
+import{getGuestSignInError,getGuestLinkError}from'./guest-auth-errors';
 import{isFirebaseConfigured,auth,googleProvider,db}from'./firebase';
-import{onAuthStateChanged,signInWithPopup,signOut}from'firebase/auth';
+import{onAuthStateChanged,signInWithPopup,signInAnonymously,linkWithPopup,signOut}from'firebase/auth';
 import{normalizeMilkRecord,normalizeTransactionRecord,planRestoreMerge}from'./restore-merge';
 import{collection,doc,setDoc,addDoc,deleteDoc,getDocs,query,orderBy,onSnapshot,serverTimestamp}from'firebase/firestore';
 
@@ -117,6 +118,17 @@ function LedgerApp({user}){
  }
  function report(err){setError(getCloudLoadingError(err)||'यह कार्य पूरा नहीं हो सका।');setNotice('')}
  function success(msg){setNotice(msg);setError('')}
+ async function linkGuestAccount(){
+  setError('');
+  try{
+   await linkWithPopup(auth.currentUser,googleProvider);
+   window.location.reload();
+  }catch(err){report(getGuestLinkError(err))}
+ }
+ async function leaveGuestSession(){
+  if(!window.confirm('अतिथि सत्र छोड़ने पर इस ब्राउज़र से अतिथि खाते की पहुँच हट जाएगी। पहले Google खाते से जोड़ें या JSON बैकअप लें। क्या सत्र छोड़ना है?'))return;
+  try{await signOut(auth)}catch(err){report(err)}
+ }
  async function persist(next){
   try{await setDoc(doc(db,'users',user.uid),{rates:next.rates,buyers:next.buyers,settings:next.settings,updatedAt:serverTimestamp()},{merge:true});setStore(next);return true}
   catch(err){report(err);return false}
@@ -301,12 +313,12 @@ function LedgerApp({user}){
    <label className="backup-label">बैकअप पुनर्स्थापित करें<input type="file" accept="application/json,.json" onChange={importBackup}/></label>
    <button className="header-action" onClick={exportBackup}>बैकअप लें</button>
   </header>
-  <div className="account-bar"><span title={user?.email}>{user?.email}</span><button type="button" onClick={()=>signOut(auth)}>साइन आउट</button></div>
+  <div className="account-bar"><span title={user?.email||'अतिथि खाता'}>{user?.isAnonymous?'अतिथि सत्र · इसी ब्राउज़र पर':user?.email}</span>{user?.isAnonymous?<><button type="button" onClick={linkGuestAccount}>Google खाते से जोड़ें</button><button type="button" onClick={leaveGuestSession}>सत्र छोड़ें</button></>:<button type="button" onClick={()=>signOut(auth)}>साइन आउट</button>}</div>
   <div className="drive-actions">
    <button type="button" className="secondary" onClick={()=>requestDriveAccess(backupToDrive)} disabled={driveBusy}>{driveBusy?'प्रक्रिया जारी है…':'Drive में बैकअप'}</button>
    <button type="button" className="secondary" onClick={()=>requestDriveAccess(restoreFromDrive)} disabled={driveBusy}>Drive से पुनर्स्थापित करें</button>
   </div>
-  <div className="storage-notice">परीक्षण संस्करण · प्रविष्टियाँ आपके Google खाते के साथ Firestore में सिंक होती हैं। वास्तविक हिसाब Version 2.0 के स्थिर विमोचन के बाद दर्ज करें।</div>
+  <div className="storage-notice">परीक्षण संस्करण · प्रविष्टियाँ आपके Firebase खाते (Google या अतिथि) के साथ Firestore में सिंक होती हैं। अतिथि डेटा को दूसरे डिवाइस पर सुरक्षित रखने के लिए Google खाते से जोड़ें। वास्तविक हिसाब Version 2.0 के स्थिर विमोचन के बाद दर्ज करें।</div>
   <section className="mode-strip">
    <div><b>माँ का व्यक्तिगत मोड</b><small>केवल भैंस · निश्चित दर · तय दूधवाला</small></div>
    <button type="button" className={personalMode?'mode-on':'mode-off'} aria-pressed={personalMode} onClick={togglePersonalMode}>{personalMode?'चालू':'बंद'}</button>
@@ -404,13 +416,14 @@ function LedgerApp({user}){
 }
 
 function AuthGate(){
- const [user,setUser]=useState(null),[ready,setReady]=useState(false),[error,setError]=useState('');
+ const [user,setUser]=useState(null),[ready,setReady]=useState(false),[error,setError]=useState(''),[busy,setBusy]=useState(false);
  useEffect(()=>{if(!isFirebaseConfigured){setReady(true);return}return onAuthStateChanged(auth,next=>{setUser(next);setReady(true)})},[]);
- async function login(){setError('');try{await signInWithPopup(auth,googleProvider)}catch(err){setError(err?.message||'Google sign-in पूरा नहीं हो सका।')}}
+ async function login(){setError('');setBusy(true);try{await signInWithPopup(auth,googleProvider)}catch(err){setError(err?.message||'Google sign-in पूरा नहीं हो सका।')}finally{setBusy(false)}}
+ async function loginAsGuest(){setError('');setBusy(true);try{await signInAnonymously(auth)}catch(err){setError(getGuestSignInError(err))}finally{setBusy(false)}}
  if(!isFirebaseConfigured)return <div className="auth-shell"><section className="auth-card"><div className="brand-mark">क</div><h1>कामधेनु</h1><p>Firebase config अभी Render पर निर्धारित नहीं है।</p></section></div>;
  if(!ready)return <div className="auth-shell"><section className="auth-card"><div className="brand-mark">क</div><h1>कामधेनु</h1><p>Google खाते की जाँच हो रही है…</p></section></div>;
  if(user)return <LedgerApp user={user}/>;
- return <div className="auth-shell"><section className="auth-card"><div className="brand-mark">क</div><h1>कामधेनु</h1><p className="auth-subtitle">दूध एवं दैनिक हिसाब</p><button className="google-auth-button" type="button" onClick={login}>Google से साइन इन करें</button>{error&&<p className="error" role="alert">{error}</p>}<p className="auth-note">एक Google खाता ही आपका कामधेनु खाता होगा। अलग पासवर्ड की आवश्यकता नहीं।</p><p className="auth-footnote">परीक्षण संस्करण · वास्तविक हिसाब Version 2.0 के बाद।</p></section></div>;
+ return <div className="auth-shell"><section className="auth-card"><div className="brand-mark">क</div><h1>कामधेनु</h1><p className="auth-subtitle">दूध एवं दैनिक हिसाब</p><button className="google-auth-button" type="button" disabled={busy} onClick={login}>{busy?'कृपया प्रतीक्षा करें…':'Google से साइन इन करें'}</button><div className="auth-divider">या</div><button className="guest-auth-button" type="button" disabled={busy} onClick={loginAsGuest}>{busy?'कृपया प्रतीक्षा करें…':'अतिथि के रूप में जारी रखें'}</button>{error&&<p className="error" role="alert">{error}</p>}<p className="auth-note">अतिथि मोड में खाता इसी ब्राउज़र से जुड़ा रहेगा। दूसरे डिवाइस पर डेटा पाने और सुरक्षित रखने के लिए ऐप में Google खाते से जोड़ें।</p><p className="auth-footnote">परीक्षण संस्करण · वास्तविक हिसाब Version 2.0 के स्थिर विमोचन के बाद।</p></section></div>;
 }
 function App(){return <AuthGate/>;}
 createRoot(document.getElementById('root')).render(<App/>);
