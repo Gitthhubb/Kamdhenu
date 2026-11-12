@@ -20,7 +20,7 @@ No Supabase services or Firebase Cloud Storage are used.
 7. Publish `firestore.rules` from this repository in Firebase console.
 8. Add the environment variables from `.env.example` to Render.
 
-Required Render variables: `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_PROJECT_ID`, `VITE_FIREBASE_APP_ID`, and `VITE_GOOGLE_CLIENT_ID`.
+Required Render variables: `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_PROJECT_ID`, and `VITE_FIREBASE_APP_ID`. `VITE_GOOGLE_CLIENT_ID` is optional and is needed only for Google Drive backup/restore.
 
 ## Google Drive backup
 Enable the Google Drive API in the same Google Cloud project. Create an OAuth Web client, add `https://mymilk.onrender.com` as an authorised JavaScript origin, and set its client ID as `VITE_GOOGLE_CLIENT_ID`. The app asks for the Drive `appDataFolder` scope only when the user presses the Drive backup or restore button. It does not request access to ordinary Drive files.
@@ -39,7 +39,7 @@ Each Google account and guest session has these collections:
 The personal-mode settings live in the same user document.
 
 ## Record behaviour
-Entries cannot be edited. Each entry can be deleted individually after confirmation. Deletions are permanent; export a JSON or Drive backup before removing anything. Restoring a backup merges only missing records. Reusing the same backup does not create duplicates; older records without IDs are matched by their normalized fields. Distinct records with different IDs are preserved even when their visible values match.
+Entries cannot be edited. Each entry can be deleted individually after confirmation. Deletions are permanent; export a JSON or Drive backup before removing anything. Restoring a backup first validates every row, date, type, amount, rate and profile setting before any Firestore write. It then merges only missing records. Reusing the same backup does not create duplicates; older records without IDs are matched by their normalized fields. Distinct records with different IDs are preserved even when their visible values match. If the profile settings write fails after records have been added, re-import the same JSON backup; existing records are skipped and profile settings can be retried.
 
 The existing three date pages, cow/buffalo milk choices, expense categories and mother's personal mode remain.
 
