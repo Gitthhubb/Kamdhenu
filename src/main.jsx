@@ -4,6 +4,7 @@ import'./style.css';
 import{getCloudLoadingError}from'./cloud-error';
 import{getGuestSignInError,getGuestLinkError}from'./guest-auth-errors';
 import{validateBackupPayload}from'./backup-validation';
+import{getMilkSaveFeedback}from'./milk-save-feedback';
 import{isFirebaseConfigured,auth,googleProvider,db}from'./firebase';
 import{onAuthStateChanged,signInWithPopup,signInAnonymously,linkWithPopup,signOut}from'firebase/auth';
 import{normalizeMilkRecord,normalizeTransactionRecord,planRestoreMerge}from'./restore-merge';
@@ -262,9 +263,10 @@ function LedgerApp({user}){
   if(!form.sale_date||!milkman||!String(form.quantity).trim()||!String(form.rate).trim()||!Number.isFinite(quantity)||quantity<=0||!Number.isFinite(rate)||rate<0)return report('दिनांक, दूधवाले का नाम, शून्य से अधिक मात्रा और वैध दर दर्ज करें।');
   try{
    await addDoc(collection(db,'users',user.uid,'milk'),{date:form.sale_date,shift:form.shift||'morning',milkman,milkType,quantity,rate,amount:Math.round(quantity*rate*100)/100,remarks:form.remarks.trim(),createdAt:serverTimestamp()});
-   await persist({...store,buyers:[...new Set([...store.buyers,milkman])],rates:{...store.rates,[milkType+'_rate']:rate}});
+   const profileSaved=await persist({...store,buyers:[...new Set([...store.buyers,milkman])],rates:{...store.rates,[milkType+'_rate']:rate}});
    setForm(personalMode?{...blankForm(store.rates),milk_type:'buffalo',buyer:store.settings.milkman,rate:String(store.settings.buffaloRate)}:blankForm(store.rates));
-   success('नई दूध प्रविष्टि सुरक्षित हो गई।');
+   const feedback=getMilkSaveFeedback(profileSaved);
+   if(profileSaved)success(feedback.message);else report(feedback.message);
   }catch(err){report(err)}
  }
  async function saveTransaction(e){
