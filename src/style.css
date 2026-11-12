@@ -6,3 +6,5 @@
 .record{position:relative;padding-right:72px}.record-actions{position:absolute;right:8px;top:8px;display:flex;gap:5px}.record-actions button{padding:6px 8px;font-size:10px}.record-actions .delete-record{background:#fff0ee;color:#a62d2d;border:1px solid #f0d3d0}.google-auth-button{width:100%;background:#fff;color:#303a32;border:1px solid #dce4dc;padding:12px;font-size:13px}.auth-note{font-size:10px;color:#748075;line-height:1.5}
 
 .drive-actions{display:flex;gap:6px;margin:7px 10px 0}.drive-actions button{flex:1;padding:8px 5px;font-size:10px}
+
+.auth-divider{display:flex;align-items:center;gap:10px;color:#889389;font-size:10px;text-align:center}.auth-divider::before,.auth-divider::after{content:'';height:1px;flex:1;background:#e5ebe3}.guest-auth-button{width:100%;padding:12px;font-size:13px;background:#285b40;color:#fff;border:1px solid #285b40}.account-bar button{font-size:9px;white-space:nowrap}.account-bar span{min-width:0}
