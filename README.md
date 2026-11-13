@@ -22,22 +22,15 @@ No Supabase services or Firebase Cloud Storage are used.
 
 Required Render variables: `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_PROJECT_ID`, and `VITE_FIREBASE_APP_ID`. `VITE_GOOGLE_CLIENT_ID` is optional and is needed only for Google Drive backup/restore.
 
-## Google Analytics 4
+## Google Analytics 4 via Google Tag Manager
 
-The web app uses the existing Firebase web measurement ID `G-VWZ66S8HMY`. Analytics initializes only in production browsers supported by the Firebase Analytics SDK.
+The web app loads the Google Tag Manager web container `GTM-KWC3P697` from the document head. No GA4 Measurement ID is hard-coded in the app. In the GTM workspace, configure a **Google tag** with the Measurement ID of the Kamdhenu web data stream and fire it on **Initialization - All Initialization Events**. Publish the container version after testing.
 
-GA4's automatically collected `page_view` and engagement events provide page views, engaged sessions and engagement time. Device categories and acquisition sources are derived by Google Analytics. The app additionally sends a `ledger_tab_view` event containing only the selected tab name (`milk` or `transactions`).
+To capture tab usage, create a GTM **Custom Event** trigger named `ledger_tab_view`. Create a Data Layer Variable named `tab_name` (Data Layer Version 2), then create a GA4 Event tag with event name `ledger_tab_view`, parameter `tab_name` mapped to that variable, and the custom-event trigger. Preview the container with Tag Assistant before publishing.
 
-The app does not send Firebase UIDs, email addresses, names, milk quantities, rates, transaction amounts, counterparties or remarks to Analytics. Analytics events are separate from Firestore ledger storage.
+The app pushes only `{ event: 'ledger_tab_view', tab_name: 'milk' | 'transactions' }` to `window.dataLayer`. It does not send Firebase UIDs, email addresses, names, milk quantities, rates, transaction amounts, counterparties or remarks to Analytics.
 
-In the GA4 property, keep Enhanced Measurement enabled for the web data stream (at minimum, Page views and Scrolls). The reports are available under:
-- **Reports → Tech → Tech overview** for device categories and technology.
-- **Reports → Acquisition → Traffic acquisition** for source, medium and channel.
-- **Reports → Engagement → Pages and screens** for page views.
-- **Reports → Engagement → Overview** for engaged sessions and engagement time.
-- **Reports → Engagement → Events** for the `ledger_tab_view` event.
-
-Analytics data begins when the instrumented build is deployed; earlier visits cannot be reconstructed.
+Once the Google tag is published in GTM, GA4 can report page views, engagement, device categories and acquisition sources. Keep GA4 Enhanced Measurement enabled for the web stream. Earlier visits cannot be reconstructed; reporting starts when the configured container is published and receives traffic.
 
 ## Google Drive backup
 Enable the Google Drive API in the same Google Cloud project. Create an OAuth Web client, add `https://mymilk.onrender.com` as an authorised JavaScript origin, and set its client ID as `VITE_GOOGLE_CLIENT_ID`. The app asks for the Drive `appDataFolder` scope only when the user presses the Drive backup or restore button. It does not request access to ordinary Drive files.
