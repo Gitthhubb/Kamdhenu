@@ -3,13 +3,16 @@ const LEDGER_TABS = Object.freeze({
   Transactions: 'transactions',
 });
 
-export function trackLedgerTabView(analytics, tab, logEvent) {
+export function trackLedgerTabView(dataLayer, tab) {
   const tabName = LEDGER_TABS[tab];
 
-  if (!analytics || !tabName || typeof logEvent !== 'function') {
+  if (!Array.isArray(dataLayer) || !tabName) {
     return false;
   }
 
-  logEvent(analytics, 'ledger_tab_view', { tab_name: tabName });
+  dataLayer.push({
+    event: 'ledger_tab_view',
+    tab_name: tabName,
+  });
   return true;
 }
