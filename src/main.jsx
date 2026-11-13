@@ -6,8 +6,7 @@ import{getGuestSignInError,getGuestLinkError}from'./guest-auth-errors';
 import{validateBackupPayload}from'./backup-validation';
 import{getMilkSaveFeedback}from'./milk-save-feedback';
 import{trackLedgerTabView}from'./analytics-events';
-import{isFirebaseConfigured,auth,googleProvider,db,initializeAnalytics}from'./firebase';
-import{logEvent}from'firebase/analytics';
+import{isFirebaseConfigured,auth,googleProvider,db}from'./firebase';
 import{onAuthStateChanged,signInWithPopup,signInAnonymously,linkWithPopup,signOut}from'firebase/auth';
 import{normalizeMilkRecord,normalizeTransactionRecord,planRestoreMerge}from'./restore-merge';
 import{collection,doc,setDoc,addDoc,deleteDoc,getDocs,query,orderBy,onSnapshot,serverTimestamp}from'firebase/firestore';
@@ -35,7 +34,7 @@ const sortNewest=(a,b)=>{
 function RadioChoices({value,onChange,options,name}){
  return <div className="radio-group" role="radiogroup">{options.map(o=><label className={'radio-choice '+(value===o.value?'chosen':'')} key={o.value}><input type="radio" name={name} value={o.value} checked={value===o.value} onChange={()=>onChange(o.value)}/><span>{o.label}</span></label>)}</div>;
 }
-function LedgerApp({user,analytics}){
+function LedgerApp({user}){
  const initial=DEFAULT_STATE;
  const [store,setStore]=useState(initial);
  const [tab,setTab]=useState('Milk');
@@ -53,7 +52,7 @@ function LedgerApp({user,analytics}){
  const [installPrompt,setInstallPrompt]=useState(null);
  const [isInstalled,setIsInstalled]=useState(()=>window.matchMedia?.('(display-mode: standalone)').matches||window.navigator.standalone===true);
 
- useEffect(()=>{trackLedgerTabView(analytics,tab,logEvent)},[analytics,tab]);
+ useEffect(()=>{trackLedgerTabView(window.dataLayer,tab)},[tab]);
  useEffect(()=>{
   if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js',{scope:'/'}).catch(err=>console.warn('PWA offline registration failed:',err));
   const onPrompt=e=>{e.preventDefault();setInstallPrompt(e)};
@@ -430,19 +429,13 @@ function LedgerApp({user,analytics}){
 }
 
 function AuthGate(){
- const [user,setUser]=useState(null),[ready,setReady]=useState(false),[error,setError]=useState(''),[busy,setBusy]=useState(false),[analytics,setAnalytics]=useState(null);
- useEffect(()=>{
-  let active=true;
-  if(isFirebaseConfigured)initializeAnalytics().then(instance=>{if(active)setAnalytics(instance)});
-  if(!isFirebaseConfigured){setReady(true);return()=>{active=false}}
-  const unsubscribe=onAuthStateChanged(auth,next=>{setUser(next);setReady(true)});
-  return()=>{active=false;unsubscribe()};
- },[]);
+ const [user,setUser]=useState(null),[ready,setReady]=useState(false),[error,setError]=useState(''),[busy,setBusy]=useState(false);
+ useEffect(()=>{if(!isFirebaseConfigured){setReady(true);return}return onAuthStateChanged(auth,next=>{setUser(next);setReady(true)})},[]);
  async function login(){setError('');setBusy(true);try{await signInWithPopup(auth,googleProvider)}catch(err){setError(err?.message||'Google sign-in पूरा नहीं हो सका।')}finally{setBusy(false)}}
  async function loginAsGuest(){setError('');setBusy(true);try{await signInAnonymously(auth)}catch(err){setError(getGuestSignInError(err))}finally{setBusy(false)}}
  if(!isFirebaseConfigured)return <div className="auth-shell"><section className="auth-card"><div className="brand-mark">क</div><h1>कामधेनु</h1><p>Firebase config अभी Render पर निर्धारित नहीं है।</p></section></div>;
  if(!ready)return <div className="auth-shell"><section className="auth-card"><div className="brand-mark">क</div><h1>कामधेनु</h1><p>Google खाते की जाँच हो रही है…</p></section></div>;
- if(user)return <LedgerApp user={user} analytics={analytics}/>;
+ if(user)return <LedgerApp user={user}/>;
  return <div className="auth-shell"><section className="auth-card"><div className="brand-mark">क</div><h1>कामधेनु</h1><p className="auth-subtitle">दूध एवं दैनिक हिसाब</p><button className="google-auth-button" type="button" disabled={busy} onClick={login}>{busy?'कृपया प्रतीक्षा करें…':'Google से साइन इन करें'}</button><div className="auth-divider">या</div><button className="guest-auth-button" type="button" disabled={busy} onClick={loginAsGuest}>{busy?'कृपया प्रतीक्षा करें…':'अतिथि के रूप में जारी रखें'}</button>{error&&<p className="error" role="alert">{error}</p>}<p className="auth-note">अतिथि मोड में खाता इसी ब्राउज़र से जुड़ा रहेगा। दूसरे डिवाइस पर डेटा पाने और सुरक्षित रखने के लिए ऐप में Google खाते से जोड़ें।</p><p className="auth-footnote">परीक्षण संस्करण · वास्तविक हिसाब Version 2.0 के स्थिर विमोचन के बाद।</p></section></div>;
 }
 function App(){return <AuthGate/>;}
