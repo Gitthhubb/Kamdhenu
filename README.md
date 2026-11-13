@@ -22,6 +22,23 @@ No Supabase services or Firebase Cloud Storage are used.
 
 Required Render variables: `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_PROJECT_ID`, and `VITE_FIREBASE_APP_ID`. `VITE_GOOGLE_CLIENT_ID` is optional and is needed only for Google Drive backup/restore.
 
+## Google Analytics 4
+
+The web app uses the existing Firebase web measurement ID `G-VWZ66S8HMY`. Analytics initializes only in production browsers supported by the Firebase Analytics SDK.
+
+GA4's automatically collected `page_view` and engagement events provide page views, engaged sessions and engagement time. Device categories and acquisition sources are derived by Google Analytics. The app additionally sends a `ledger_tab_view` event containing only the selected tab name (`milk` or `transactions`).
+
+The app does not send Firebase UIDs, email addresses, names, milk quantities, rates, transaction amounts, counterparties or remarks to Analytics. Analytics events are separate from Firestore ledger storage.
+
+In the GA4 property, keep Enhanced Measurement enabled for the web data stream (at minimum, Page views and Scrolls). The reports are available under:
+- **Reports → Tech → Tech overview** for device categories and technology.
+- **Reports → Acquisition → Traffic acquisition** for source, medium and channel.
+- **Reports → Engagement → Pages and screens** for page views.
+- **Reports → Engagement → Overview** for engaged sessions and engagement time.
+- **Reports → Engagement → Events** for the `ledger_tab_view` event.
+
+Analytics data begins when the instrumented build is deployed; earlier visits cannot be reconstructed.
+
 ## Google Drive backup
 Enable the Google Drive API in the same Google Cloud project. Create an OAuth Web client, add `https://mymilk.onrender.com` as an authorised JavaScript origin, and set its client ID as `VITE_GOOGLE_CLIENT_ID`. The app asks for the Drive `appDataFolder` scope only when the user presses the Drive backup or restore button. It does not request access to ordinary Drive files.
 
