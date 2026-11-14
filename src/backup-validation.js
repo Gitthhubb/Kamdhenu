@@ -2,6 +2,7 @@ import {
   normalizeMilkRecord,
   normalizeTransactionRecord,
 } from './restore-merge.js';
+import { normalizeSettings, SUPPORTED_CURRENCIES } from './app-settings.js';
 
 const VALID_SHIFTS = new Set(['morning', 'evening']);
 const VALID_MILK_TYPES = new Set(['cow', 'buffalo']);
@@ -104,31 +105,52 @@ function validateBuyers(value) {
 }
 
 function validateSettings(value) {
-  if (value === undefined) return { personalMode: false, milkman: '', buffaloRate: '' };
+  if (value === undefined) return normalizeSettings();
   if (!isObject(value)) fail('बैकअप की सेटिंग्स सही प्रारूप में नहीं हैं।');
 
-  const personalMode = value.personalMode ?? false;
-  const milkman = value.milkman ?? '';
-  const rawRate = value.buffaloRate ?? '';
-
-  if (typeof personalMode !== 'boolean') fail('बैकअप की सेटिंग्स: व्यक्तिगत मोड का मान सही नहीं है।');
-  if (typeof milkman !== 'string') fail('बैकअप की सेटिंग्स: दूधवाले का नाम सही नहीं है।');
-  if (typeof rawRate !== 'string' && typeof rawRate !== 'number') {
-    fail('बैकअप की सेटिंग्स: भैंस की दर सही नहीं है।');
-  }
-
-  const buffaloRate = rawRate === '' ? '' : String(rawRate);
-  if (buffaloRate !== '') {
-    const parsedRate = finiteNumber(buffaloRate);
-    if (!Number.isFinite(parsedRate) || parsedRate < 0) {
-      fail('बैकअप की सेटिंग्स: भैंस की दर वैध संख्या होनी चाहिए।');
+  for (const field of ['quickEntryEnabled', 'lockDefaultRate', 'personalMode']) {
+    if (value[field] !== undefined && typeof value[field] !== 'boolean') {
+      fail(`बैकअप की सेटिंग्स: ${field} का मान सही नहीं है।`);
     }
   }
-  if (personalMode && (!milkman.trim() || !buffaloRate || finiteNumber(buffaloRate) <= 0)) {
-    fail('बैकअप की सेटिंग्स: चालू व्यक्तिगत मोड के लिए दूधवाले का नाम और शून्य से अधिक भैंस-दर आवश्यक है।');
+
+  const textFields = [
+    ['ledgerName', 60], ['tagline', 100], ['footerNote', 120],
+    ['quickEntryLabel', 50], ['defaultMilkman', 80], ['milkman', 80],
+  ];
+  for (const [field, maxLength] of textFields) {
+    if (value[field] !== undefined
+      && (typeof value[field] !== 'string' || value[field].trim().length > maxLength)) {
+      fail(`बैकअप की सेटिंग्स: ${field} सही प्रारूप में नहीं है।`);
+    }
   }
 
-  return { personalMode, milkman: milkman.trim(), buffaloRate };
+  if (value.currency !== undefined && !SUPPORTED_CURRENCIES.includes(value.currency)) {
+    fail('बैकअप की सेटिंग्स: मुद्रा समर्थित नहीं है।');
+  }
+  if (value.defaultMilkType !== undefined && !VALID_MILK_TYPES.has(value.defaultMilkType)) {
+    fail('बैकअप की सेटिंग्स: डिफ़ॉल्ट दूध का प्रकार मान्य नहीं है।');
+  }
+
+  const rawRate = value.defaultRate ?? value.buffaloRate ?? '';
+  if (typeof rawRate !== 'string' && typeof rawRate !== 'number') {
+    fail('बैकअप की सेटिंग्स: डिफ़ॉल्ट दर सही नहीं है।');
+  }
+  const defaultRate = rawRate === '' ? '' : String(rawRate);
+  if (defaultRate !== '') {
+    const parsedRate = finiteNumber(defaultRate);
+    if (!Number.isFinite(parsedRate) || parsedRate < 0) {
+      fail('बैकअप की सेटिंग्स: डिफ़ॉल्ट दर वैध संख्या होनी चाहिए।');
+    }
+  }
+
+  const settings = normalizeSettings(value);
+  if (settings.quickEntryEnabled
+    && (!settings.defaultMilkman.trim() || !defaultRate || finiteNumber(defaultRate) <= 0)) {
+    fail('बैकअप की सेटिंग्स: त्वरित प्रविष्टि प्रोफ़ाइल चालू करने के लिए दूधवाले का नाम और शून्य से अधिक डिफ़ॉल्ट दर आवश्यक है।');
+  }
+
+  return { ...settings, defaultRate };
 }
 
 /**
