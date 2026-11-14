@@ -50,7 +50,7 @@ export function normalizeSettings(value, rates = {}) {
     currency: SUPPORTED_CURRENCIES.includes(source.currency) ? source.currency : DEFAULT_SETTINGS.currency,
     quickEntryEnabled: typeof source.quickEntryEnabled === 'boolean'
       ? source.quickEntryEnabled
-      : DEFAULT_SETTINGS.lockDefaultRate,
+      : legacyPersonalMode,
     quickEntryLabel: textValue(source.quickEntryLabel, DEFAULT_SETTINGS.quickEntryLabel, 50)
       || DEFAULT_SETTINGS.quickEntryLabel,
     defaultMilkman: textValue(source.defaultMilkman ?? source.milkman, '', 80),
@@ -58,6 +58,6 @@ export function normalizeSettings(value, rates = {}) {
     defaultRate: currentRate === null || currentRate === undefined ? '' : String(currentRate),
     lockDefaultRate: typeof source.lockDefaultRate === 'boolean'
       ? source.lockDefaultRate
-      : legacyPersonalMode,
+      : DEFAULT_SETTINGS.lockDefaultRate,
   };
 }
