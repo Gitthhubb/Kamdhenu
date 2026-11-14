@@ -407,7 +407,7 @@ function LedgerApp({user}){
     })}{!periodTransactions.length&&<p className="empty">इस अवधि में कोई लेन-देन दर्ज नहीं है।</p>}</div>
    </>}
   </main>
-  <footer className="dedication"><b>{store.settings.footerNote||store.settings.ledgerName}</b>{store.settings.tagline&&<i>{store.settings.tagline}</i>}<small>इस खाते की प्रविष्टियाँ केवल प्रमाणित खाते से जुड़ी हैं।</small><span>होम स्क्रीन पर जोड़ें: ब्राउज़र मेनू → ऐप इंस्टॉल करें</span></footer>
+  <footer className="app-footer"><b>{store.settings.footerNote||store.settings.ledgerName}</b>{store.settings.tagline&&<i>{store.settings.tagline}</i>}<small>इस खाते की प्रविष्टियाँ केवल प्रमाणित खाते से जुड़ी हैं।</small><span>होम स्क्रीन पर जोड़ें: ब्राउज़र मेनू → ऐप इंस्टॉल करें</span></footer>
  </div>;
 }
 
