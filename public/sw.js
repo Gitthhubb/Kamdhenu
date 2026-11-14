@@ -1,5 +1,5 @@
-const CACHE_NAME='kamdhenu-pwa-v4';
-const CORE_ASSETS=['/','/manifest.webmanifest','/icon.svg','/icon-192.png','/icon-512.png'];
+const CACHE_NAME='kamdhenu-pwa-v5';
+const CORE_ASSETS=['/','/manifest.webmanifest','/icon.svg','/icon-192.png','/icon-512.png','/icon-maskable.svg'];
 self.addEventListener('install',event=>{
  event.waitUntil((async()=>{
   const cache=await caches.open(CACHE_NAME);
