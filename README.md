@@ -46,12 +46,24 @@ Each Google account and guest session has these collections:
 - `milk`: date, morning/evening, milkman, cow/buffalo, quantity, rate and amount.
 - `transactions`: date, received/remained/advance/expense, amount, party, category and remarks.
 
-The personal-mode settings live in the same user document.
+Each account's configurable ledger profile and quick-entry settings live in the same user document.
+
+## Account-level configuration
+
+Kamdhenu is not configured around one household or one named operator. Each signed-in Google account or guest session has its own configurable ledger profile. The profile can set:
+- Ledger or business name, subtitle and optional footer note.
+- Display currency (INR, USD, GBP or EUR).
+- An optional quick-entry preset with a user-defined label, supplier/milkman, milk type and default rate.
+- Whether the preset rate is locked or may be changed on each entry.
+
+The former Mother's personal mode is migrated to the generic quick-entry profile on load and when importing an older JSON/Drive backup. Existing milk and transaction records are not rewritten by this migration. New accounts start with neutral defaults.
+
+Accounts remain isolated by Firebase UID. This release does not provide shared team workspaces or multi-user access to the same ledger; each authenticated account maintains a separate dataset.
 
 ## Record behaviour
 Entries cannot be edited. Each entry can be deleted individually after confirmation. Deletions are permanent; export a JSON or Drive backup before removing anything. Restoring a backup first validates every row, date, type, amount, rate and profile setting before any Firestore write. It then merges only missing records. Reusing the same backup does not create duplicates; older records without IDs are matched by their normalized fields. Distinct records with different IDs are preserved even when their visible values match. If the profile settings write fails after records have been added, re-import the same JSON backup; existing records are skipped and profile settings can be retried.
 
-The existing three date pages, cow/buffalo milk choices, expense categories and mother's personal mode remain.
+The existing three date pages, cow/buffalo milk choices and expense categories remain. Each account can configure its ledger identity, currency and optional quick-entry profile independently.
 
 ## Free tier
 Firestore Spark provides a daily free quota: 1 GiB stored data, 50,000 reads, 20,000 writes and 20,000 deletes per day, plus 10 GiB/month outbound transfer. When Spark quotas are exceeded, the relevant service is capped until the quota resets; usage does not automatically switch to paid billing. Do not attach a billing account or enable Cloud Storage.
