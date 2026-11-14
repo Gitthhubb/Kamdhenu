@@ -82,7 +82,7 @@ function LedgerApp({user}){
  async function saveAccountSettings(e){
   e.preventDefault();
   const settings=normalizeSettings(settingsDraft,store.rates);
-  if(!settings.ledgerName.trim())return report('लेजर या व्यवसाय का नाम दर्ज करें।');
+  if(!settingsDraft.ledgerName.trim())return report('लेजर या व्यवसाय का नाम दर्ज करें।');
   if(settings.quickEntryEnabled&&(!settings.defaultMilkman.trim()||!settings.defaultRate.trim()||!Number.isFinite(Number(settings.defaultRate))||Number(settings.defaultRate)<=0)){
    return report('त्वरित प्रविष्टि के लिए सप्लायर का नाम और शून्य से अधिक डिफ़ॉल्ट दर दर्ज करें।');
   }
@@ -310,11 +310,11 @@ function LedgerApp({user}){
    <div><b>लेजर प्रोफ़ाइल और सेटिंग्स</b><small>{store.settings.quickEntryEnabled?store.settings.quickEntryLabel+' · '+store.settings.defaultMilkman:'सामान्य प्रविष्टि · '+store.settings.currency}</small></div>
    <button type="button" className="mode-settings" aria-expanded={settingsOpen} onClick={()=>setSettingsOpen(v=>!v)}>{settingsOpen?'बंद करें':'कॉन्फ़िगर करें'}</button>
   </section>
-  {settingsOpen&&<form className="personal-setup" onSubmit={saveAccountSettings}>
+  {settingsOpen&&<form className="account-settings-panel" onSubmit={saveAccountSettings}>
    <b>लेजर और खाता सेटिंग्स</b>
    <label>लेजर / व्यवसाय का नाम<input className="text-input full-text" maxLength="60" value={settingsDraft.ledgerName} onChange={e=>setSettingsDraft({...settingsDraft,ledgerName:e.target.value})} placeholder="उदाहरण: शिव डेयरी" required/></label>
    <label>विवरण / उपशीर्षक<input className="full-text" maxLength="100" value={settingsDraft.tagline} onChange={e=>setSettingsDraft({...settingsDraft,tagline:e.target.value})} placeholder="उदाहरण: दैनिक दूध एवं नकद हिसाब"/></label>
-   <label>मुद्रा<select value={settingsDraft.currency} onChange={e=>setSettingsDraft({...settingsDraft,currency:e.target.value})}>{SUPPORTED_CURRENCIES.map(code=><option key={code} value={code}>{code}</option>)}</select></label>
+   <label>मुद्रा<select value={settingsDraft.currency} onChange={e=>setSettingsDraft({...settingsDraft,currency:e.target.value})}>{SUPPORTED_CURRENCIES.map(code=><option key={code} value={code}>{code}</option>)}</select></label><small>मुद्रा बदलने से केवल प्रदर्शन प्रारूप बदलता है; पुरानी राशियों का विनिमय-दर रूपांतरण नहीं होता।</small>
    <label className="setting-check"><input type="checkbox" checked={settingsDraft.quickEntryEnabled} onChange={e=>setSettingsDraft({...settingsDraft,quickEntryEnabled:e.target.checked})}/> त्वरित प्रविष्टि प्रोफ़ाइल सक्षम करें</label>
    {settingsDraft.quickEntryEnabled&&<>
     <label>प्रोफ़ाइल का नाम<input className="full-text" maxLength="50" value={settingsDraft.quickEntryLabel} onChange={e=>setSettingsDraft({...settingsDraft,quickEntryLabel:e.target.value})} placeholder="उदाहरण: सुबह की सप्लाई"/></label>
@@ -389,7 +389,7 @@ function LedgerApp({user}){
     <form className="entry-form" onSubmit={saveTransaction}>
      <label>दिनांक<input className="date-input" type="date" value={txForm.date} onChange={e=>setTxForm({...txForm,date:e.target.value})} required/></label>
      <label>लेन-देन का प्रकार<RadioChoices name="transaction-kind" value={txForm.kind} onChange={v=>setTxForm({...txForm,kind:v})} options={[{value:'received',label:'प्राप्त'},{value:'remained',label:'बाकी'},{value:'advance',label:'अग्रिम'},{value:'expense',label:'खर्च'}]}/></label>
-     <label>राशि (₹)<input className="number-input" type="number" min=".01" step=".01" inputMode="decimal" placeholder="0" value={txForm.amount} onChange={e=>setTxForm({...txForm,amount:e.target.value})} required/></label>
+     <label>राशि ({currencySymbol})<input className="number-input" type="number" min=".01" step=".01" inputMode="decimal" placeholder="0" value={txForm.amount} onChange={e=>setTxForm({...txForm,amount:e.target.value})} required/></label>
      <label>किससे / किसे (To Whom)<input className="text-input full-text" value={txForm.party} onChange={e=>setTxForm({...txForm,party:e.target.value})} placeholder="व्यक्ति या पार्टी का नाम"/></label>
      {txForm.kind==='expense'&&<label>खर्च का मद<RadioChoices name="expense-category" value={txForm.category} onChange={v=>setTxForm({...txForm,category:v})} options={expenseCategories}/></label>}
      <label>टिप्पणी<textarea className="comment-input" rows="2" value={txForm.remarks} onChange={e=>setTxForm({...txForm,remarks:e.target.value})} placeholder="वैकल्पिक टिप्पणी"/></label>
