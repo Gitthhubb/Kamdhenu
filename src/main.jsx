@@ -32,13 +32,19 @@ const sortNewest=(a,b)=>{
  const ad=a.sale_date||a.date||'',bd=b.sale_date||b.date||'';
  return bd.localeCompare(ad)||String(b.created_at||'').localeCompare(String(a.created_at||''));
 };
+function changeLedgerTab(value,setTab){
+ setTab(value);
+ const url=new URL(window.location.href);
+ url.searchParams.set('tab',value==='Transactions'?'transactions':'milk');
+ window.history.replaceState({},'',url);
+}
 function RadioChoices({value,onChange,options,name}){
  return <div className="radio-group" role="radiogroup">{options.map(o=><label className={'radio-choice '+(value===o.value?'chosen':'')} key={o.value}><input type="radio" name={name} value={o.value} checked={value===o.value} onChange={()=>onChange(o.value)}/><span>{o.label}</span></label>)}</div>;
 }
-function LedgerApp({user}){
+function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
  const initial=DEFAULT_STATE;
  const [store,setStore]=useState(initial);
- const [tab,setTab]=useState('Milk');
+ const [tab,setTab]=useState(()=>new URLSearchParams(window.location.search).get('tab')==='transactions'?'Transactions':'Milk');
  const [month,setMonth]=useState(today().slice(0,7));
  const [periodPage,setPeriodPage]=useState(Math.min(3,Math.ceil(Number(today().slice(8,10))/10)));
  const [error,setError]=useState('');
@@ -49,20 +55,10 @@ function LedgerApp({user}){
  const [settingsDraft,setSettingsDraft]=useState({...initial.settings});
  const [cloudReady,setCloudReady]=useState(false);
  const [driveBusy,setDriveBusy]=useState(false);
- const [installPrompt,setInstallPrompt]=useState(null);
- const [isInstalled,setIsInstalled]=useState(()=>window.matchMedia?.('(display-mode: standalone)').matches||window.navigator.standalone===true);
  const money=n=>new Intl.NumberFormat('hi-IN',{style:'currency',currency:store.settings.currency||'INR',maximumFractionDigits:2}).format(Number(n)||0);
  const currencySymbol=new Intl.NumberFormat('hi-IN',{style:'currency',currency:store.settings.currency||'INR',maximumFractionDigits:0}).formatToParts(0).find(part=>part.type==='currency')?.value||store.settings.currency||'INR';
 
  useEffect(()=>{trackLedgerTabView(window.dataLayer,tab)},[tab]);
- useEffect(()=>{
-  if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js',{scope:'/'}).catch(err=>console.warn('PWA offline registration failed:',err));
-  const onPrompt=e=>{e.preventDefault();setInstallPrompt(e)};
-  const onInstalled=()=>{setIsInstalled(true);setInstallPrompt(null);setNotice('कामधेनु ऐप इंस्टॉल हो गया।');setError('')};
-  window.addEventListener('beforeinstallprompt',onPrompt);
-  window.addEventListener('appinstalled',onInstalled);
-  return()=>{window.removeEventListener('beforeinstallprompt',onPrompt);window.removeEventListener('appinstalled',onInstalled)};
- },[]);
  useEffect(()=>{
   if(!user?.uid)return;
   let rootLoaded=false,milkLoaded=false,txLoaded=false,profile={},milkRows=[],txRows=[];
@@ -118,15 +114,6 @@ function LedgerApp({user}){
  async function deleteTransaction(id){
   if(!window.confirm('क्या इस लेन-देन को स्थायी रूप से हटाना है?'))return;
   try{await deleteDoc(doc(db,'users',user.uid,'transactions',id));success('लेन-देन हटा दिया गया।')}catch(err){report(err)}
- }
- async function installApp(){
-  if(!installPrompt){success('ब्राउज़र मेनू से “ऐप इंस्टॉल करें” या “होम स्क्रीन पर जोड़ें” चुनें।');return}
-  try{
-   await installPrompt.prompt();
-   const choice=await installPrompt.userChoice;
-   if(choice?.outcome==='accepted')success('कामधेनु इंस्टॉल किया जा रहा है।');
-  }catch(err){report('ऐप इंस्टॉल करने का अनुरोध पूरा नहीं हुआ।')}
-  finally{setInstallPrompt(null)}
  }
  function selectPeriodPage(page,targetMonth=month){
   const y=Number(targetMonth.slice(0,4)),m=Number(targetMonth.slice(5,7));
@@ -295,11 +282,12 @@ function LedgerApp({user}){
   <header>
    <div className="brand-mark">क</div>
    <div className="brand-copy"><b>{store.settings.ledgerName}</b><small>{store.settings.tagline}</small></div>
-   {!isInstalled&&<button className="install-action" onClick={installApp}>{installPrompt?'ऐप इंस्टॉल करें':'होम स्क्रीन'}</button>}
+   {!isInstalled&&<button className="install-action" onClick={onInstall}>{installPrompt?'ऐप इंस्टॉल करें':'इंस्टॉल करें'}</button>}
    {isInstalled&&<span className="installed-label">ऐप मोड</span>}
    <label className="backup-label">बैकअप पुनर्स्थापित करें<input type="file" accept="application/json,.json" onChange={importBackup}/></label>
    <button className="header-action" onClick={exportBackup}>बैकअप लें</button>
   </header>
+  {installHelp&&<div className="storage-notice">Chrome के ⋮ मेनू से “ऐप इंस्टॉल करें” या “होम स्क्रीन पर जोड़ें” चुनें।</div>}
   <div className="account-bar"><span title={user?.email||'अतिथि खाता'}>{user?.isAnonymous?'अतिथि सत्र · इसी ब्राउज़र पर':user?.email}</span>{user?.isAnonymous?<><button type="button" onClick={linkGuestAccount}>Google खाते से जोड़ें</button><button type="button" onClick={leaveGuestSession}>सत्र छोड़ें</button></>:<button type="button" onClick={()=>signOut(auth)}>साइन आउट</button>}</div>
   <div className="drive-actions">
    <button type="button" className="secondary" onClick={()=>requestDriveAccess(backupToDrive)} disabled={driveBusy}>{driveBusy?'प्रक्रिया जारी है…':'Drive में बैकअप'}</button>
@@ -336,8 +324,8 @@ function LedgerApp({user}){
    <div className="hero-foot"><span>आज का दूध</span><b>{number(milkToday)} लीटर</b><span>आज की बिक्री</span><b>{money(total(todayMilk))}</b></div>
   </section>
   <nav aria-label="मुख्य मेनू">
-   <button className={tab==='Milk'?'active':''} onClick={()=>{setTab('Milk');setError('');setNotice('')}}>दूध</button>
-   <button className={tab==='Transactions'?'active':''} onClick={()=>{setTab('Transactions');setError('');setNotice('')}}>लेन-देन</button>
+   <button className={tab==='Milk'?'active':''} onClick={()=>{changeLedgerTab('Milk',setTab);setError('');setNotice('')}}>दूध</button>
+   <button className={tab==='Transactions'?'active':''} onClick={()=>{changeLedgerTab('Transactions',setTab);setError('');setNotice('')}}>लेन-देन</button>
   </nav>
   <main>
    <div className="heading-row">
@@ -413,13 +401,36 @@ function LedgerApp({user}){
 
 function AuthGate(){
  const [user,setUser]=useState(null),[ready,setReady]=useState(false),[error,setError]=useState(''),[busy,setBusy]=useState(false);
+ const [installPrompt,setInstallPrompt]=useState(null);
+ const [isInstalled,setIsInstalled]=useState(()=>window.matchMedia?.('(display-mode: standalone)').matches||window.navigator.standalone===true);
+ const [installHelp,setInstallHelp]=useState(false);
+ useEffect(()=>{
+  if('serviceWorker' in navigator){
+   navigator.serviceWorker.register('/sw.js',{scope:'/'}).catch(err=>console.warn('PWA offline registration failed:',err));
+  }
+  const onPrompt=e=>{e.preventDefault();setInstallPrompt(e);setInstallHelp(false)};
+  const onInstalled=()=>{setIsInstalled(true);setInstallPrompt(null);setInstallHelp(false)};
+  window.addEventListener('beforeinstallprompt',onPrompt);
+  window.addEventListener('appinstalled',onInstalled);
+  return()=>{window.removeEventListener('beforeinstallprompt',onPrompt);window.removeEventListener('appinstalled',onInstalled)};
+ },[]);
  useEffect(()=>{if(!isFirebaseConfigured){setReady(true);return}return onAuthStateChanged(auth,next=>{setUser(next);setReady(true)})},[]);
+ async function installApp(){
+  setInstallHelp(false);
+  if(!installPrompt){setInstallHelp(true);return}
+  try{
+   await installPrompt.prompt();
+   const choice=await installPrompt.userChoice;
+   if(choice?.outcome!=='accepted')setInstallHelp(true);
+  }catch(err){setInstallHelp(true)}
+  finally{setInstallPrompt(null)}
+ }
  async function login(){setError('');setBusy(true);try{await signInWithPopup(auth,googleProvider)}catch(err){setError(err?.message||'Google sign-in पूरा नहीं हो सका।')}finally{setBusy(false)}}
  async function loginAsGuest(){setError('');setBusy(true);try{await signInAnonymously(auth)}catch(err){setError(getGuestSignInError(err))}finally{setBusy(false)}}
  if(!isFirebaseConfigured)return <div className="auth-shell"><section className="auth-card"><div className="brand-mark">क</div><h1>कामधेनु</h1><p>Firebase config अभी Render पर निर्धारित नहीं है।</p></section></div>;
  if(!ready)return <div className="auth-shell"><section className="auth-card"><div className="brand-mark">क</div><h1>कामधेनु</h1><p>Google खाते की जाँच हो रही है…</p></section></div>;
- if(user)return <LedgerApp user={user}/>;
- return <div className="auth-shell"><section className="auth-card"><div className="brand-mark">क</div><h1>कामधेनु</h1><p className="auth-subtitle">दूध एवं दैनिक हिसाब</p><button className="google-auth-button" type="button" disabled={busy} onClick={login}>{busy?'कृपया प्रतीक्षा करें…':'Google से साइन इन करें'}</button><div className="auth-divider">या</div><button className="guest-auth-button" type="button" disabled={busy} onClick={loginAsGuest}>{busy?'कृपया प्रतीक्षा करें…':'अतिथि के रूप में जारी रखें'}</button>{error&&<p className="error" role="alert">{error}</p>}<p className="auth-note">अतिथि मोड में खाता इसी ब्राउज़र से जुड़ा रहेगा। दूसरे डिवाइस पर डेटा पाने और सुरक्षित रखने के लिए ऐप में Google खाते से जोड़ें।</p><p className="auth-footnote">परीक्षण संस्करण · वास्तविक हिसाब Version 2.0 के स्थिर विमोचन के बाद।</p></section></div>;
+ if(user)return <LedgerApp user={user} installPrompt={installPrompt} isInstalled={isInstalled} onInstall={installApp} installHelp={installHelp}/>;
+ return <div className="auth-shell"><section className="auth-card"><div className="brand-mark">क</div><h1>कामधेनु</h1><p className="auth-subtitle">दूध एवं दैनिक हिसाब</p>{!isInstalled&&<button className="install-action auth-install" type="button" onClick={installApp}>{installPrompt?'Android ऐप इंस्टॉल करें':'Android पर इंस्टॉल करें'}</button>}{installHelp&&<p className="auth-install-help">Chrome के ⋮ मेनू से “ऐप इंस्टॉल करें” या “होम स्क्रीन पर जोड़ें” चुनें।</p>}<button className="google-auth-button" type="button" disabled={busy} onClick={login}>{busy?'कृपया प्रतीक्षा करें…':'Google से साइन इन करें'}</button><div className="auth-divider">या</div><button className="guest-auth-button" type="button" disabled={busy} onClick={loginAsGuest}>{busy?'कृपया प्रतीक्षा करें…':'अतिथि के रूप में जारी रखें'}</button>{error&&<p className="error" role="alert">{error}</p>}<p className="auth-note">अतिथि मोड में खाता इसी ब्राउज़र से जुड़ा रहेगा। दूसरे डिवाइस पर डेटा पाने और सुरक्षित रखने के लिए ऐप में Google खाते से जोड़ें।</p><p className="auth-footnote">परीक्षण संस्करण · वास्तविक हिसाब Version 2.0 के स्थिर विमोचन के बाद।</p></section></div>;
 }
 function App(){return <AuthGate/>;}
 createRoot(document.getElementById('root')).render(<App/>);
