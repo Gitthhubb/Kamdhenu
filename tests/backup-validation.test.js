@@ -54,7 +54,18 @@ test('normalises a valid backup while preserving source document IDs', () => {
     }],
     rates: { cow_rate: 60, buffalo_rate: 70 },
     buyers: ['राम'],
-    settings: { personalMode: false, milkman: '', buffaloRate: '' },
+    settings: {
+      ledgerName: 'कामधेनु',
+      tagline: 'दूध एवं दैनिक हिसाब',
+      footerNote: '',
+      currency: 'INR',
+      quickEntryEnabled: false,
+      quickEntryLabel: 'त्वरित प्रविष्टि',
+      defaultMilkman: '',
+      defaultMilkType: 'buffalo',
+      defaultRate: '',
+      lockDefaultRate: true,
+    },
   });
 });
 
@@ -93,5 +104,52 @@ test('supports legacy backups with omitted optional profile collections and sett
   delete backup.settings;
   const result = validateBackupPayload(backup);
   assert.deepEqual(result.buyers, []);
-  assert.deepEqual(result.settings, { personalMode: false, milkman: '', buffaloRate: '' });
+  assert.equal(result.settings.quickEntryEnabled, false);
+  assert.equal(result.settings.ledgerName, 'कामधेनु');
+});
+
+test('migrates legacy one-person backups into a generic quick-entry profile', () => {
+  const backup = validBackup({
+    settings: { personalMode: true, milkman: 'राम डेयरी', buffaloRate: '70' },
+  });
+  const result = validateBackupPayload(backup);
+  assert.deepEqual(result.settings, {
+    ledgerName: 'कामधेनु',
+    tagline: 'दूध एवं दैनिक हिसाब',
+    footerNote: '',
+    currency: 'INR',
+    quickEntryEnabled: true,
+    quickEntryLabel: 'त्वरित प्रविष्टि',
+    defaultMilkman: 'राम डेयरी',
+    defaultMilkType: 'buffalo',
+    defaultRate: '70',
+    lockDefaultRate: true,
+  });
+});
+
+test('accepts a custom editable quick-entry profile in backups', () => {
+  const backup = validBackup({
+    settings: {
+      ledgerName: 'शिव डेयरी',
+      tagline: 'दैनिक दूध लेखा',
+      currency: 'USD',
+      quickEntryEnabled: true,
+      quickEntryLabel: 'सुबह की सप्लाई',
+      defaultMilkman: 'मोहन',
+      defaultMilkType: 'cow',
+      defaultRate: '65',
+      lockDefaultRate: false,
+    },
+  });
+  const result = validateBackupPayload(backup);
+  assert.equal(result.settings.ledgerName, 'शिव डेयरी');
+  assert.equal(result.settings.currency, 'USD');
+  assert.equal(result.settings.lockDefaultRate, false);
+});
+
+test('rejects an enabled quick-entry profile without its required supplier and rate', () => {
+  const backup = validBackup({
+    settings: { quickEntryEnabled: true, defaultMilkman: '', defaultRate: '' },
+  });
+  assert.throws(() => validateBackupPayload(backup), /त्वरित प्रविष्टि प्रोफ़ाइल चालू करने/);
 });
