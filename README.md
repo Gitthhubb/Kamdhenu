@@ -1,6 +1,6 @@
 # कामधेनु
 
-A small Hindi household ledger for milk collection and daily cash entries.
+A configurable Hindi dairy ledger for milk entries and daily cash transactions.
 
 ## Stack
 - Firebase Authentication with Google sign-in and optional anonymous guest sessions.
