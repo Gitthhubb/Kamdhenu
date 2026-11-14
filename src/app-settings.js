@@ -50,7 +50,7 @@ export function normalizeSettings(value, rates = {}) {
     currency: SUPPORTED_CURRENCIES.includes(source.currency) ? source.currency : DEFAULT_SETTINGS.currency,
     quickEntryEnabled: typeof source.quickEntryEnabled === 'boolean'
       ? source.quickEntryEnabled
-      : legacyPersonalMode,
+      : DEFAULT_SETTINGS.lockDefaultRate,
     quickEntryLabel: textValue(source.quickEntryLabel, DEFAULT_SETTINGS.quickEntryLabel, 50)
       || DEFAULT_SETTINGS.quickEntryLabel,
     defaultMilkman: textValue(source.defaultMilkman ?? source.milkman, '', 80),
