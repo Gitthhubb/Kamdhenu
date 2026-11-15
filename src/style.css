@@ -12,3 +12,6 @@
 .account-settings-panel select{width:100%;max-width:100%;padding:10px;border:1px solid #d5ddd5;border-radius:9px;background:#fff;color:#34483a;font:inherit}
 .account-settings-panel .setting-check{display:flex!important;flex-direction:row!important;align-items:center;gap:8px!important;font-weight:600!important}
 .account-settings-panel .setting-check input{width:16px!important;height:16px;max-width:16px;padding:0;margin:0;accent-color:#285b40;flex:0 0 16px}
+
+.auth-install{width:100%;padding:11px;text-align:center;font-size:12px}
+.auth-install-help{padding:9px;border-radius:8px;background:#edf5ee;color:#285b40;font-size:11px!important;line-height:1.5}

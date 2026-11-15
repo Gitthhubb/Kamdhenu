@@ -10,6 +10,12 @@ A configurable Hindi dairy ledger for milk entries and daily cash transactions.
 
 No Supabase services or Firebase Cloud Storage are used.
 
+## Android app installation
+
+Kamdhenu can be installed on Android as a standalone PWA. Open https://mymilk.onrender.com/ in Chrome, then use the in-page **Android पर इंस्टॉल करें** action or Chrome's **⋮ → Install app / Add to Home screen** command. The app shell is cached for repeat launch; Firebase account access and ledger synchronisation still require internet connectivity.
+
+See [Android installation instructions](docs/ANDROID_INSTALLATION.md). This is not an APK/AAB or a Play Store release; those require a separate signed Android/TWA package and domain association.
+
 ## Firebase setup
 1. Create a Firebase project on the **Spark (no-cost)** plan.
 2. Register a Web app and copy its Firebase web configuration.
