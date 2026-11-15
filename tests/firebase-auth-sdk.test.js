@@ -7,7 +7,7 @@ test('Firebase Auth dependency includes the popup IndexedDB visibility regressio
   const version = packageJson.dependencies?.firebase;
   assert.equal(typeof version, 'string', 'Firebase must be an explicit application dependency');
 
-  const match = version.match(/^(\\d+)\\.(\\d+)\\.(\\d+)$/);
+  const match = version.match(/^(\d+)\.(\d+)\.(\d+)$/);
   assert.ok(match, 'Firebase must be pinned to an exact release; received: ' + version);
 
   const actual = match.slice(1).map(Number);
