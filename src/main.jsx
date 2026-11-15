@@ -2,7 +2,7 @@ import React,{useEffect,useState}from'react';
 import{createRoot}from'react-dom/client';
 import'./style.css';
 import{getCloudLoadingError}from'./cloud-error';
-import{getGuestSignInError,getGuestLinkError}from'./guest-auth-errors';
+import{getGuestSignInError,getGuestLinkError,getGoogleSignInError}from'./guest-auth-errors';
 import{validateBackupPayload}from'./backup-validation';
 import{getMilkSaveFeedback}from'./milk-save-feedback';
 import{trackLedgerTabView}from'./analytics-events';
@@ -414,7 +414,7 @@ function LedgerApp({user}){
 function AuthGate(){
  const [user,setUser]=useState(null),[ready,setReady]=useState(false),[error,setError]=useState(''),[busy,setBusy]=useState(false);
  useEffect(()=>{if(!isFirebaseConfigured){setReady(true);return}return onAuthStateChanged(auth,next=>{setUser(next);setReady(true)})},[]);
- async function login(){setError('');setBusy(true);try{await signInWithPopup(auth,googleProvider)}catch(err){setError(err?.message||'Google sign-in पूरा नहीं हो सका।')}finally{setBusy(false)}}
+ async function login(){setError('');setBusy(true);try{await signInWithPopup(auth,googleProvider)}catch(err){setError(getGoogleSignInError(err))}finally{setBusy(false)}}
  async function loginAsGuest(){setError('');setBusy(true);try{await signInAnonymously(auth)}catch(err){setError(getGuestSignInError(err))}finally{setBusy(false)}}
  if(!isFirebaseConfigured)return <div className="auth-shell"><section className="auth-card"><div className="brand-mark">क</div><h1>कामधेनु</h1><p>Firebase config अभी Render पर निर्धारित नहीं है।</p></section></div>;
  if(!ready)return <div className="auth-shell"><section className="auth-card"><div className="brand-mark">क</div><h1>कामधेनु</h1><p>Google खाते की जाँच हो रही है…</p></section></div>;
