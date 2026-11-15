@@ -2,7 +2,7 @@ import React,{useEffect,useState}from'react';
 import{createRoot}from'react-dom/client';
 import'./style.css';
 import{getCloudLoadingError}from'./cloud-error';
-import{getGuestSignInError,getGuestLinkError}from'./guest-auth-errors';
+import{getGuestSignInError,getGuestLinkError,getGoogleSignInError}from'./guest-auth-errors';
 import{validateBackupPayload}from'./backup-validation';
 import{getMilkSaveFeedback}from'./milk-save-feedback';
 import{trackLedgerTabView}from'./analytics-events';
@@ -92,6 +92,9 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
  }
  function report(err){setError(getCloudLoadingError(err)||'यह कार्य पूरा नहीं हो सका।');setNotice('')}
  function success(msg){setNotice(msg);setError('')}
+ async function signOutAccount(){
+  try{await signOut(auth)}catch(err){report(err)}
+ }
  async function linkGuestAccount(){
   setError('');
   try{
@@ -288,7 +291,7 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
    <button className="header-action" onClick={exportBackup}>बैकअप लें</button>
   </header>
   {installHelp&&<div className="storage-notice">Chrome के ⋮ मेनू से “ऐप इंस्टॉल करें” या “होम स्क्रीन पर जोड़ें” चुनें।</div>}
-  <div className="account-bar"><span title={user?.email||'अतिथि खाता'}>{user?.isAnonymous?'अतिथि सत्र · इसी ब्राउज़र पर':user?.email}</span>{user?.isAnonymous?<><button type="button" onClick={linkGuestAccount}>Google खाते से जोड़ें</button><button type="button" onClick={leaveGuestSession}>सत्र छोड़ें</button></>:<button type="button" onClick={()=>signOut(auth)}>साइन आउट</button>}</div>
+  <div className="account-bar"><span title={user?.email||'अतिथि खाता'}>{user?.isAnonymous?'अतिथि सत्र · इसी ब्राउज़र पर':user?.email}</span>{user?.isAnonymous?<><button type="button" onClick={linkGuestAccount}>Google खाते से जोड़ें</button><button type="button" onClick={leaveGuestSession}>सत्र छोड़ें</button></>:<button type="button" onClick={signOutAccount}>साइन आउट</button>}</div>
   <div className="drive-actions">
    <button type="button" className="secondary" onClick={()=>requestDriveAccess(backupToDrive)} disabled={driveBusy}>{driveBusy?'प्रक्रिया जारी है…':'Drive में बैकअप'}</button>
    <button type="button" className="secondary" onClick={()=>requestDriveAccess(restoreFromDrive)} disabled={driveBusy}>Drive से पुनर्स्थापित करें</button>
@@ -414,7 +417,7 @@ function AuthGate(){
   window.addEventListener('appinstalled',onInstalled);
   return()=>{window.removeEventListener('beforeinstallprompt',onPrompt);window.removeEventListener('appinstalled',onInstalled)};
  },[]);
- useEffect(()=>{if(!isFirebaseConfigured){setReady(true);return}return onAuthStateChanged(auth,next=>{setUser(next);setReady(true)})},[]);
+ useEffect(()=>{if(!isFirebaseConfigured){setReady(true);return}return onAuthStateChanged(auth,next=>{setUser(next);setReady(true)},authError=>{setError(getGoogleSignInError(authError));setReady(true)})},[]);
  async function installApp(){
   setInstallHelp(false);
   if(!installPrompt){setInstallHelp(true);return}
@@ -425,7 +428,7 @@ function AuthGate(){
   }catch(err){setInstallHelp(true)}
   finally{setInstallPrompt(null)}
  }
- async function login(){setError('');setBusy(true);try{await signInWithPopup(auth,googleProvider)}catch(err){setError(err?.message||'Google sign-in पूरा नहीं हो सका।')}finally{setBusy(false)}}
+ async function login(){setError('');setBusy(true);try{await signInWithPopup(auth,googleProvider)}catch(err){setError(getGoogleSignInError(err))}finally{setBusy(false)}}
  async function loginAsGuest(){setError('');setBusy(true);try{await signInAnonymously(auth)}catch(err){setError(getGuestSignInError(err))}finally{setBusy(false)}}
  if(!isFirebaseConfigured)return <div className="auth-shell"><section className="auth-card"><div className="brand-mark">क</div><h1>कामधेनु</h1><p>Firebase config अभी Render पर निर्धारित नहीं है।</p></section></div>;
  if(!ready)return <div className="auth-shell"><section className="auth-card"><div className="brand-mark">क</div><h1>कामधेनु</h1><p>Google खाते की जाँच हो रही है…</p></section></div>;
