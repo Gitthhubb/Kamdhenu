@@ -44,3 +44,15 @@ test('gives a useful explanation when the Google sign-in popup is blocked', asyn
     /popup|पॉप-अप/i,
   );
 });
+
+test('recognises the IndexedDB visibility failure when Firebase wraps the original exception', async () => {
+  const { getGoogleSignInError } = await import('../src/guest-auth-errors.js');
+  assert.match(
+    getGoogleSignInError({
+      code: 'auth/internal-error',
+      message: 'Firebase: Error (auth/internal-error).',
+      customData: { originalError: new Error('Database is closing/hidden') },
+    }),
+    /पुराना.*Firebase|Firebase.*पुराना/i,
+  );
+});
