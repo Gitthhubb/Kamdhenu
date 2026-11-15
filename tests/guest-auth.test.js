@@ -28,3 +28,19 @@ test('preserves useful details for unclassified guest authentication errors', ()
     /Network request failed\./,
   );
 });
+
+test('explains the Firebase IndexedDB visibility regression if an old cached app bundle is still running', async () => {
+  const { getGoogleSignInError } = await import('../src/guest-auth-errors.js');
+  assert.match(
+    getGoogleSignInError(new Error('Database is closing/hidden')),
+    /पुराना.*Firebase|Firebase.*पुराना/i,
+  );
+});
+
+test('gives a useful explanation when the Google sign-in popup is blocked', async () => {
+  const { getGoogleSignInError } = await import('../src/guest-auth-errors.js');
+  assert.match(
+    getGoogleSignInError({ code: 'auth/popup-blocked', message: 'Popup blocked.' }),
+    /popup|पॉप-अप/i,
+  );
+});
