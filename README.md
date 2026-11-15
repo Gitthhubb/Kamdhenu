@@ -17,6 +17,8 @@ Kamdhenu can be installed on Android as a standalone PWA. Open https://mymilk.on
 See [Android installation instructions](docs/ANDROID_INSTALLATION.md). This is not an APK/AAB or a Play Store release; those require a separate signed Android/TWA package and domain association.
 
 ## Firebase setup
+**SDK compatibility:** Keep the Firebase Web SDK at `12.18.0` or later. The app currently pins `12.19.0`; Firebase `12.17.x` contains a known Google popup-auth IndexedDB visibility regression (`Database is closing/hidden`). A regression test enforces this minimum.
+
 1. Create a Firebase project on the **Spark (no-cost)** plan.
 2. Register a Web app and copy its Firebase web configuration.
 3. Enable **Authentication → Sign-in method → Google**.
