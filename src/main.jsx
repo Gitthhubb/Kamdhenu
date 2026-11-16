@@ -332,7 +332,7 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
    const profileSaved=await persist({...store,buyers:[...new Set([...store.buyers,milkman])],rates:{...store.rates,[milkType+'_rate']:rate}});
    setForm(configuredMilkForm(store.settings,store.rates));
    const feedback=getMilkSaveFeedback(profileSaved);
-   if(profileSaved)success(navigator.onLine?feedback.message:'प्रविष्टि स्थानीय रूप से सुरक्षित; इंटरनेट उपलब्ध होने पर समन्वय होगा।');else report(feedback.message);
+   if(profileSaved)success(navigator.onLine?'दूध प्रविष्टि स्थानीय रूप से सुरक्षित; सर्वर से समन्वय जारी है।':'प्रविष्टि स्थानीय रूप से सुरक्षित; इंटरनेट उपलब्ध होने पर समन्वय होगा।');else report(feedback.message);
   }catch(err){report(err)}
  }
  async function saveTransaction(e){
@@ -345,7 +345,7 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
   try{
    const transactionWrite=addDoc(collection(db,'users',user.uid,'transactions'),{date:txForm.date,kind:txForm.kind,amount,party:txForm.party.trim(),category:txForm.kind==='expense'?txForm.category:'',remarks:txForm.remarks.trim(),createdAt:serverTimestamp()});
    transactionWrite.catch(report);
-   setTxForm(blankTransaction());success(navigator.onLine?'नया लेन-देन सुरक्षित किया जा रहा है।':'लेन-देन स्थानीय रूप से सुरक्षित; इंटरनेट उपलब्ध होने पर समन्वय होगा।');
+   setTxForm(blankTransaction());success(navigator.onLine?'लेन-देन स्थानीय रूप से सुरक्षित; सर्वर से समन्वय जारी है।':'लेन-देन स्थानीय रूप से सुरक्षित; इंटरनेट उपलब्ध होने पर समन्वय होगा।');
   }catch(err){report(err)}
  }
  function exportCsv(){
