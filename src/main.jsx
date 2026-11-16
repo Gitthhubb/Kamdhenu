@@ -169,17 +169,29 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
   if(!window.confirm('अतिथि सत्र छोड़ने पर इस ब्राउज़र से अतिथि खाते की पहुँच हट जाएगी। पहले Google खाते से जोड़ें या JSON बैकअप लें। क्या सत्र छोड़ना है?'))return;
   try{await signOut(auth)}catch(err){report(err)}
  }
- async function persist(next){
-  try{await setDoc(doc(db,'users',user.uid),{rates:next.rates,buyers:next.buyers,settings:next.settings,updatedAt:serverTimestamp()},{merge:true});setStore(next);return true}
-  catch(err){report(err);return false}
+ function persist(next){
+  try{
+   const write=setDoc(doc(db,'users',user.uid),{rates:next.rates,buyers:next.buyers,settings:next.settings,updatedAt:serverTimestamp()},{merge:true});
+   write.catch(report);
+   setStore(next);
+   return true;
+  }catch(err){report(err);return false}
  }
  async function deleteMilk(id){
   if(!window.confirm('क्या इस दूध प्रविष्टि को स्थायी रूप से हटाना है?'))return;
-  try{await deleteDoc(doc(db,'users',user.uid,'milk',id));success('दूध प्रविष्टि हटा दी गई।')}catch(err){report(err)}
+  try{
+   const write=deleteDoc(doc(db,'users',user.uid,'milk',id));
+   write.catch(report);
+   success(navigator.onLine?'दूध प्रविष्टि हटाने का अनुरोध भेजा गया।':'प्रविष्टि स्थानीय रूप से हटाई गई; ऑनलाइन होने पर समन्वय होगा।');
+  }catch(err){report(err)}
  }
  async function deleteTransaction(id){
   if(!window.confirm('क्या इस लेन-देन को स्थायी रूप से हटाना है?'))return;
-  try{await deleteDoc(doc(db,'users',user.uid,'transactions',id));success('लेन-देन हटा दिया गया।')}catch(err){report(err)}
+  try{
+   const write=deleteDoc(doc(db,'users',user.uid,'transactions',id));
+   write.catch(report);
+   success(navigator.onLine?'लेन-देन हटाने का अनुरोध भेजा गया।':'लेन-देन स्थानीय रूप से हटाया गया; ऑनलाइन होने पर समन्वय होगा।');
+  }catch(err){report(err)}
  }
  function selectPeriodPage(page,targetMonth=month){
   const y=Number(targetMonth.slice(0,4)),m=Number(targetMonth.slice(5,7));
@@ -310,11 +322,12 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
   if(form.sale_date<periodStart||form.sale_date>periodEnd)return report('दिनांक चुने हुए पृष्ठ की अवधि में होनी चाहिए।');
   if(!form.sale_date||!milkman||!String(form.quantity).trim()||!String(form.rate).trim()||!Number.isFinite(quantity)||quantity<=0||!Number.isFinite(rate)||rate<0)return report('दिनांक, दूधवाले का नाम, शून्य से अधिक मात्रा और वैध दर दर्ज करें।');
   try{
-   await addDoc(collection(db,'users',user.uid,'milk'),{date:form.sale_date,shift:form.shift||'morning',milkman,milkType,quantity,rate,amount:Math.round(quantity*rate*100)/100,remarks:form.remarks.trim(),createdAt:serverTimestamp()});
+   const milkWrite=addDoc(collection(db,'users',user.uid,'milk'),{date:form.sale_date,shift:form.shift||'morning',milkman,milkType,quantity,rate,amount:Math.round(quantity*rate*100)/100,remarks:form.remarks.trim(),createdAt:serverTimestamp()});
+   milkWrite.catch(report);
    const profileSaved=await persist({...store,buyers:[...new Set([...store.buyers,milkman])],rates:{...store.rates,[milkType+'_rate']:rate}});
    setForm(configuredMilkForm(store.settings,store.rates));
    const feedback=getMilkSaveFeedback(profileSaved);
-   if(profileSaved)success(feedback.message);else report(feedback.message);
+   if(profileSaved)success(navigator.onLine?feedback.message:'प्रविष्टि स्थानीय रूप से सुरक्षित; इंटरनेट उपलब्ध होने पर समन्वय होगा।');else report(feedback.message);
   }catch(err){report(err)}
  }
  async function saveTransaction(e){
@@ -324,8 +337,9 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
   if(!txForm.date||!String(txForm.amount).trim()||!Number.isFinite(amount)||amount<=0)return report('वैध दिनांक और शून्य से अधिक राशि दर्ज करें।');
   if(txForm.kind==='expense'&&!txForm.category)return report('खर्च का मद चुनें।');
   try{
-   await addDoc(collection(db,'users',user.uid,'transactions'),{date:txForm.date,kind:txForm.kind,amount,party:txForm.party.trim(),category:txForm.kind==='expense'?txForm.category:'',remarks:txForm.remarks.trim(),createdAt:serverTimestamp()});
-   setTxForm(blankTransaction());success('नया लेन-देन सुरक्षित हो गया।');
+   const transactionWrite=addDoc(collection(db,'users',user.uid,'transactions'),{date:txForm.date,kind:txForm.kind,amount,party:txForm.party.trim(),category:txForm.kind==='expense'?txForm.category:'',remarks:txForm.remarks.trim(),createdAt:serverTimestamp()});
+   transactionWrite.catch(report);
+   setTxForm(blankTransaction());success(navigator.onLine?'नया लेन-देन सुरक्षित किया जा रहा है।':'लेन-देन स्थानीय रूप से सुरक्षित; इंटरनेट उपलब्ध होने पर समन्वय होगा।');
   }catch(err){report(err)}
  }
  function exportCsv(){
