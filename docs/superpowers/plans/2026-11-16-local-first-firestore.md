@@ -41,23 +41,23 @@
 
 ### Task 1: Month query boundaries
 
-- [ ] Write failing tests for ordinary months, December rollover, leap-year February, and invalid month keys.
-- [ ] Run `npm test` and confirm the new tests fail because the helper is absent.
-- [ ] Implement `getMonthDateRange(monthKey)` in `src/ledger-query.js`.
-- [ ] Run the focused test and then the full suite.
+- [x] Write failing tests for ordinary months, December rollover, leap-year February, and invalid month keys.
+- [x] Run `npm test` and confirm the new tests fail because the helper is absent.
+- [x] Implement `getMonthDateRange(monthKey)` in `src/ledger-query.js`.
+- [x] Run the focused test and then the full suite.
 
 ### Task 2: Persistent cache and non-blocking startup
 
-- [ ] Add failing regression assertions for persistent multi-tab cache, metadata-aware listeners, and the absence of a Firestore-dependent render gate.
-- [ ] Implement persistent Firestore cache and the visible sync/offline state.
-- [ ] Keep the account shell rendered while initial snapshots arrive from cache or server.
-- [ ] Run the full suite and production build.
+- [x] Add failing regression assertions for persistent multi-tab cache, metadata-aware listeners, and the absence of a Firestore-dependent render gate.
+- [x] Implement persistent Firestore cache and the visible sync/offline state.
+- [x] Keep the account shell rendered while initial snapshots arrive from cache or server.
+- [x] Run the full suite and production build.
 
 ### Task 3: Bounded reads and complete backup semantics
 
-- [ ] Add failing regression assertions for month-bounded listener queries and server-fetched full-history backup/restore.
-- [ ] Apply the selected month range to milk and transaction listeners.
-- [ ] Change JSON and Drive backups to fetch complete histories from the server on demand.
-- [ ] Change restore deduplication to use complete server snapshots.
-- [ ] Run all tests, build, and dependency audit.
+- [x] Add failing regression assertions for month-bounded listener queries and server-fetched full-history backup/restore.
+- [x] Apply the selected month range to milk and transaction listeners.
+- [x] Change JSON and Drive backups to fetch complete histories from the server on demand.
+- [x] Change restore deduplication to use complete server snapshots.
+- [x] Run all tests, build, and dependency audit.
 
