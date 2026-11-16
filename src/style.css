@@ -15,3 +15,8 @@
 
 .auth-install{width:100%;padding:11px;text-align:center;font-size:12px}
 .auth-install-help{padding:9px;border-radius:8px;background:#edf5ee;color:#285b40;font-size:11px!important;line-height:1.5}
+
+.sync-status{margin:7px 10px 0;padding:6px 9px;border:1px solid #e0e7df;border-radius:8px;background:#f0f4ef;color:#56675a;font-size:10px;line-height:1.45}
+.sync-status.sync-synced{background:#edf7ee;border-color:#dbe9dc;color:#285b40}
+.sync-status.sync-offline,.sync-status.sync-error{background:#fff8e9;border-color:#eee0bf;color:#77613b}
+.sync-status.sync-pending{background:#fff8e9;border-color:#eee0bf;color:#77613b}

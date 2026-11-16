@@ -1,6 +1,11 @@
 import { initializeApp, getApps } from 'firebase/app';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import {
+  getFirestore,
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+} from 'firebase/firestore';
 
 const config = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -15,6 +20,18 @@ export const firebaseApp = isFirebaseConfigured
   : null;
 export const auth = firebaseApp ? getAuth(firebaseApp) : null;
 export const googleProvider = new GoogleAuthProvider();
-export const db = firebaseApp
-  ? getFirestore(firebaseApp)
-  : null;
+
+function createFirestore(app) {
+  try {
+    return initializeFirestore(app, {
+      localCache: persistentLocalCache({
+        tabManager: persistentMultipleTabManager(),
+      }),
+    });
+  } catch (error) {
+    console.warn('Persistent Firestore cache is unavailable; using the default cache.', error);
+    return getFirestore(app);
+  }
+}
+
+export const db = firebaseApp ? createFirestore(firebaseApp) : null;
