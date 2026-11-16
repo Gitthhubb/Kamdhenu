@@ -69,3 +69,9 @@ test('restore deduplication checks complete server-side collections', async () =
   assert.match(restore, /getDocsFromServer\(/);
   assert.doesNotMatch(restore, /getDocs\(/);
 });
+
+test('does not allow profile-backed writes until cached or server-confirmed account settings are available', async () => {
+  const source = await read('../src/main.jsx');
+  assert.match(source, /setProfileReady\(!snap\.metadata\.fromCache\s*\|\|\s*snap\.exists\(\)\)/);
+  assert.ok((source.match(/disabled=\{!profileReady\}/g) || []).length >= 3);
+});
