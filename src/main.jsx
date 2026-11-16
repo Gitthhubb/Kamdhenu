@@ -6,10 +6,11 @@ import{getGuestSignInError,getGuestLinkError,getGoogleSignInError}from'./guest-a
 import{validateBackupPayload}from'./backup-validation';
 import{getMilkSaveFeedback}from'./milk-save-feedback';
 import{trackLedgerTabView}from'./analytics-events';
+import{getMonthDateRange}from'./ledger-query';
 import{isFirebaseConfigured,auth,googleProvider,db}from'./firebase';
 import{onAuthStateChanged,signInWithPopup,signInAnonymously,linkWithPopup,signOut}from'firebase/auth';
 import{normalizeMilkRecord,normalizeTransactionRecord,planRestoreMerge}from'./restore-merge';
-import{collection,doc,setDoc,addDoc,deleteDoc,getDocs,query,orderBy,onSnapshot,serverTimestamp}from'firebase/firestore';
+import{collection,doc,setDoc,addDoc,deleteDoc,getDocsFromServer,query,where,orderBy,onSnapshot,serverTimestamp}from'firebase/firestore';
 import{DEFAULT_SETTINGS,normalizeSettings,SUPPORTED_CURRENCIES}from'./app-settings';
 
 const today=()=>{const d=new Date();return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-')};
@@ -53,8 +54,9 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
  const [txForm,setTxForm]=useState(blankTransaction());
  const [settingsOpen,setSettingsOpen]=useState(false);
  const [settingsDraft,setSettingsDraft]=useState({...initial.settings});
- const [cloudReady,setCloudReady]=useState(false);
+ const [syncStatus,setSyncStatus]=useState('loading');
  const [driveBusy,setDriveBusy]=useState(false);
+ const [backupBusy,setBackupBusy]=useState(false);
  const money=n=>new Intl.NumberFormat('hi-IN',{style:'currency',currency:store.settings.currency||'INR',maximumFractionDigits:2}).format(Number(n)||0);
  const currencySymbol=new Intl.NumberFormat('hi-IN',{style:'currency',currency:store.settings.currency||'INR',maximumFractionDigits:0}).formatToParts(0).find(part=>part.type==='currency')?.value||store.settings.currency||'INR';
 
@@ -62,18 +64,79 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
  useEffect(()=>{
   if(!user?.uid)return;
   let rootLoaded=false,milkLoaded=false,txLoaded=false,profile={},milkRows=[],txRows=[];
+  let rootFromCache=true,milkFromCache=true,txFromCache=true;
+  let rootPending=false,milkPending=false,txPending=false;
+  let profileSignature=null,profileChanged=false;
+  setSyncStatus(navigator.onLine?'loading':'offline');
+  setStore(current=>({...current,rows:[],transactions:[]}));
+
+  const updateSyncStatus=()=>{
+   if(!rootLoaded||!milkLoaded||!txLoaded){setSyncStatus(navigator.onLine?'loading':'offline');return}
+   if(!navigator.onLine){setSyncStatus('offline');return}
+   if(rootPending||milkPending||txPending){setSyncStatus('pending');return}
+   if(rootFromCache||milkFromCache||txFromCache){setSyncStatus('cached');return}
+   setSyncStatus('synced');
+  };
   const apply=()=>{
    if(!rootLoaded||!milkLoaded||!txLoaded)return;
    const next={...DEFAULT_STATE,...profile,rows:milkRows,transactions:txRows,rates:{...DEFAULT_STATE.rates,...(profile.rates||{})},settings:normalizeSettings(profile.settings||{},profile.rates||{}),buyers:Array.isArray(profile.buyers)?profile.buyers:[]};
-   setStore(next);setSettingsDraft(next.settings);
-   setForm(configuredMilkForm(next.settings,next.rates));
-   setCloudReady(true);
+   setStore(next);
+   if(profileChanged){
+    setSettingsDraft(next.settings);
+    setForm(configuredMilkForm(next.settings,next.rates));
+    profileChanged=false;
+   }
+   updateSyncStatus();
   };
-  const a=onSnapshot(doc(db,'users',user.uid),snap=>{profile=snap.exists()?snap.data():{};rootLoaded=true;apply()},report);
-  const b=onSnapshot(query(collection(db,'users',user.uid,'milk'),orderBy('date','desc')),snap=>{milkRows=snap.docs.map(d=>({id:d.id,...d.data(),sale_date:d.data().date,buyer:d.data().milkman,milk_type:d.data().milkType,created_at:d.data().createdAt?.toDate?.()?.toISOString?.()||''}));milkLoaded=true;apply()},report);
-  const d=onSnapshot(query(collection(db,'users',user.uid,'transactions'),orderBy('date','desc')),snap=>{txRows=snap.docs.map(d=>({id:d.id,...d.data(),created_at:d.data().createdAt?.toDate?.()?.toISOString?.()||''}));txLoaded=true;apply()},report);
+  const handleListenerError=err=>{report(err);setSyncStatus(navigator.onLine?'error':'offline')};
+  const a=onSnapshot(doc(db,'users',user.uid),{includeMetadataChanges:true},snap=>{
+   const nextProfile=snap.exists()?snap.data():{};
+   const nextSignature=JSON.stringify(nextProfile);
+   profileChanged=nextSignature!==profileSignature;
+   profileSignature=nextSignature;
+   profile=nextProfile;
+   rootLoaded=true;
+   rootFromCache=snap.metadata.fromCache;
+   rootPending=snap.metadata.hasPendingWrites;
+   apply();
+  },handleListenerError);
+
+  const {startDate,endDateExclusive}=getMonthDateRange(month);
+  const milkQuery=query(
+   collection(db,'users',user.uid,'milk'),
+   where('date','>=',startDate),
+   where('date','<',endDateExclusive),
+   orderBy('date','desc')
+  );
+  const transactionQuery=query(
+   collection(db,'users',user.uid,'transactions'),
+   where('date','>=',startDate),
+   where('date','<',endDateExclusive),
+   orderBy('date','desc')
+  );
+  const b=onSnapshot(milkQuery,{includeMetadataChanges:true},snap=>{
+   milkRows=snap.docs.map(d=>({id:d.id,...d.data(),sale_date:d.data().date,buyer:d.data().milkman,milk_type:d.data().milkType,created_at:d.data().createdAt?.toDate?.()?.toISOString?.()||''}));
+   milkLoaded=true;
+   milkFromCache=snap.metadata.fromCache;
+   milkPending=snap.metadata.hasPendingWrites;
+   apply();
+  },handleListenerError);
+  const d=onSnapshot(transactionQuery,{includeMetadataChanges:true},snap=>{
+   txRows=snap.docs.map(d=>({id:d.id,...d.data(),created_at:d.data().createdAt?.toDate?.()?.toISOString?.()||''}));
+   txLoaded=true;
+   txFromCache=snap.metadata.fromCache;
+   txPending=snap.metadata.hasPendingWrites;
+   apply();
+  },handleListenerError);
   return()=>{a();b();d()};
- },[user?.uid]);
+ },[user?.uid,month]);
+ useEffect(()=>{
+  const online=()=>setSyncStatus('syncing');
+  const offline=()=>setSyncStatus('offline');
+  window.addEventListener('online',online);
+  window.addEventListener('offline',offline);
+  return()=>{window.removeEventListener('online',online);window.removeEventListener('offline',offline)};
+ },[]);
 
  async function saveAccountSettings(e){
   e.preventDefault();
@@ -134,16 +197,34 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
   setMonth(value);
   selectPeriodPage(page,value);
  }
- function exportBackup(){
-  const blob=new Blob([JSON.stringify({schema:5,exportedAt:new Date().toISOString(),...store},null,2)],{type:'application/json'});
-  const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='kamdhenu-backup-'+today()+'.json';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);success('बैकअप डाउनलोड हो गया।');
+ async function loadCompleteLedgerData(){
+  const milkCollection=collection(db,'users',user.uid,'milk');
+  const transactionCollection=collection(db,'users',user.uid,'transactions');
+  const [milkSnapshot,transactionSnapshot]=await Promise.all([
+   getDocsFromServer(query(milkCollection,orderBy('date','desc'))),
+   getDocsFromServer(query(transactionCollection,orderBy('date','desc')))
+  ]);
+  return {
+   ...store,
+   rows:milkSnapshot.docs.map(d=>({id:d.id,...d.data(),sale_date:d.data().date,buyer:d.data().milkman,milk_type:d.data().milkType,created_at:d.data().createdAt?.toDate?.()?.toISOString?.()||''})),
+   transactions:transactionSnapshot.docs.map(d=>({id:d.id,...d.data(),created_at:d.data().createdAt?.toDate?.()?.toISOString?.()||''})),
+  };
+ }
+ async function exportBackup(){
+  setBackupBusy(true);
+  try{
+   const fullLedger = await loadCompleteLedgerData();
+   const blob=new Blob([JSON.stringify({schema:5,exportedAt:new Date().toISOString(),...fullLedger},null,2)],{type:'application/json'});
+   const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='kamdhenu-backup-'+today()+'.json';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);success('बैकअप डाउनलोड हो गया।');
+  }catch(err){report(err)}
+  finally{setBackupBusy(false)}
  }
  async function restoreBackupData(d){
   const backup=validateBackupPayload(d);
   if(!window.confirm('क्या बैकअप की केवल नई प्रविष्टियाँ जोड़नी हैं? मौजूदा प्रविष्टियाँ बदली या हटाई नहीं जाएँगी।'))return;
   const milkCollection=collection(db,'users',user.uid,'milk');
   const transactionCollection=collection(db,'users',user.uid,'transactions');
-  const [milkSnapshot,transactionSnapshot]=await Promise.all([getDocs(milkCollection),getDocs(transactionCollection)]);
+  const [milkSnapshot,transactionSnapshot]=await Promise.all([getDocsFromServer(query(milkCollection,orderBy('date','desc'))),getDocsFromServer(query(transactionCollection,orderBy('date','desc')))]);
   const milkExisting=milkSnapshot.docs.map(snapshot=>({id:snapshot.id,...snapshot.data()}));
   const transactionExisting=transactionSnapshot.docs.map(snapshot=>({id:snapshot.id,...snapshot.data()}));
   const milkAdditions=planRestoreMerge(backup.rows,milkExisting,normalizeMilkRecord);
@@ -179,7 +260,8 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
   reader.readAsText(file);
  }
  async function backupToDrive(accessToken){
-  const payload={schema:5,exportedAt:new Date().toISOString(),...store};
+  const fullLedger = await loadCompleteLedgerData();
+  const payload={schema:5,exportedAt:new Date().toISOString(),...fullLedger};
   const find=await fetch("https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&q=name%3D%27kamdhenu-backup.json%27%20and%20trashed%3Dfalse&fields=files(id,name)",{headers:{Authorization:'Bearer '+accessToken}});
   if(!find.ok)throw new Error('Google Drive में बैकअप फ़ाइल की जाँच नहीं हो सकी।');
   const matches=(await find.json()).files||[];
@@ -280,7 +362,7 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
  const rangeLabel=periodStartDay+'–'+periodEndDay;
  const periodLabel=periodPage===1?'पहला पृष्ठ':periodPage===2?'दूसरा पृष्ठ':'तीसरा पृष्ठ';
 
- if(!cloudReady)return <div className="auth-shell"><section className="auth-card"><div className="brand-mark">क</div><h1>कामधेनु</h1><p>Firestore से आपका बही-खाता लोड हो रहा है…</p>{error&&<><p className="error" role="alert">{error}</p><button type="button" onClick={()=>window.location.reload()}>फिर प्रयास करें</button></>}</section></div>;
+ const syncMessages={loading:'स्थानीय डेटा तैयार हो रहा है…',cached:'स्थानीय डेटा · सर्वर से समन्वय जारी',syncing:'सर्वर से समन्वय जारी…',synced:'सभी परिवर्तन समन्वित',offline:'ऑफ़लाइन · उपलब्ध स्थानीय डेटा',pending:'परिवर्तन सिंक होने की प्रतीक्षा में',error:'सर्वर से समन्वय में समस्या'};
  return <div className="app">
   <header>
    <div className="brand-mark">क</div>
@@ -288,9 +370,10 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
    {!isInstalled&&<button className="install-action" onClick={onInstall}>{installPrompt?'ऐप इंस्टॉल करें':'इंस्टॉल करें'}</button>}
    {isInstalled&&<span className="installed-label">ऐप मोड</span>}
    <label className="backup-label">बैकअप पुनर्स्थापित करें<input type="file" accept="application/json,.json" onChange={importBackup}/></label>
-   <button className="header-action" onClick={exportBackup}>बैकअप लें</button>
+   <button className="header-action" onClick={exportBackup} disabled={backupBusy}>{backupBusy?'बैकअप तैयार हो रहा है…':'बैकअप लें'}</button>
   </header>
   {installHelp&&<div className="storage-notice">Chrome के ⋮ मेनू से “ऐप इंस्टॉल करें” या “होम स्क्रीन पर जोड़ें” चुनें।</div>}
+  <div className={'sync-status sync-'+syncStatus} role="status" aria-live="polite">{syncMessages[syncStatus]||syncMessages.loading}</div>
   <div className="account-bar"><span title={user?.email||'अतिथि खाता'}>{user?.isAnonymous?'अतिथि सत्र · इसी ब्राउज़र पर':user?.email}</span>{user?.isAnonymous?<><button type="button" onClick={linkGuestAccount}>Google खाते से जोड़ें</button><button type="button" onClick={leaveGuestSession}>सत्र छोड़ें</button></>:<button type="button" onClick={signOutAccount}>साइन आउट</button>}</div>
   <div className="drive-actions">
    <button type="button" className="secondary" onClick={()=>requestDriveAccess(backupToDrive)} disabled={driveBusy}>{driveBusy?'प्रक्रिया जारी है…':'Drive में बैकअप'}</button>
