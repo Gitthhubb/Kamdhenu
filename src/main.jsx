@@ -55,6 +55,7 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
  const [settingsOpen,setSettingsOpen]=useState(false);
  const [settingsDraft,setSettingsDraft]=useState({...initial.settings});
  const [syncStatus,setSyncStatus]=useState('loading');
+ const [profileReady,setProfileReady]=useState(false);
  const [driveBusy,setDriveBusy]=useState(false);
  const [backupBusy,setBackupBusy]=useState(false);
  const money=n=>new Intl.NumberFormat('hi-IN',{style:'currency',currency:store.settings.currency||'INR',maximumFractionDigits:2}).format(Number(n)||0);
@@ -68,6 +69,7 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
   let rootPending=false,milkPending=false,txPending=false;
   let profileSignature=null,profileChanged=false;
   setSyncStatus(navigator.onLine?'loading':'offline');
+  setProfileReady(false);
   setStore(current=>({...current,rows:[],transactions:[]}));
 
   const updateSyncStatus=()=>{
@@ -96,6 +98,7 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
    profileSignature=nextSignature;
    profile=nextProfile;
    rootLoaded=true;
+   setProfileReady(!snap.metadata.fromCache||snap.exists());
    rootFromCache=snap.metadata.fromCache;
    rootPending=snap.metadata.hasPendingWrites;
    apply();
@@ -140,6 +143,7 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
 
  async function saveAccountSettings(e){
   e.preventDefault();
+  if(!profileReady)return report('खाता सेटिंग्स अभी उपलब्ध नहीं हैं। समन्वय पूरा होने तक प्रतीक्षा करें।');
   const settings=normalizeSettings(settingsDraft,store.rates);
   if(!settingsDraft.ledgerName.trim())return report('लेजर या व्यवसाय का नाम दर्ज करें।');
   if(settings.quickEntryEnabled&&(!settings.defaultMilkman.trim()||!settings.defaultRate.trim()||!Number.isFinite(Number(settings.defaultRate))||Number(settings.defaultRate)<=0)){
@@ -318,6 +322,7 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
 
  async function saveMilk(e){
   e.preventDefault();
+  if(!profileReady)return report('खाता सेटिंग्स अभी उपलब्ध नहीं हैं। समन्वय पूरा होने तक प्रतीक्षा करें।');
   const quantity=Number(form.quantity),quickEntry=store.settings.quickEntryEnabled,rate=Number(quickEntry&&store.settings.lockDefaultRate?store.settings.defaultRate:form.rate),milkman=(quickEntry?store.settings.defaultMilkman:form.buyer).trim(),milkType=quickEntry?store.settings.defaultMilkType:form.milk_type;
   if(form.sale_date<periodStart||form.sale_date>periodEnd)return report('दिनांक चुने हुए पृष्ठ की अवधि में होनी चाहिए।');
   if(!form.sale_date||!milkman||!String(form.quantity).trim()||!String(form.rate).trim()||!Number.isFinite(quantity)||quantity<=0||!Number.isFinite(rate)||rate<0)return report('दिनांक, दूधवाले का नाम, शून्य से अधिक मात्रा और वैध दर दर्ज करें।');
@@ -332,6 +337,7 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
  }
  async function saveTransaction(e){
   e.preventDefault();
+  if(!profileReady)return report('खाता सेटिंग्स अभी उपलब्ध नहीं हैं। समन्वय पूरा होने तक प्रतीक्षा करें।');
   const amount=Number(txForm.amount);
   if(txForm.date<periodStart||txForm.date>periodEnd)return report('दिनांक चुने हुए पृष्ठ की अवधि में होनी चाहिए।');
   if(!txForm.date||!String(txForm.amount).trim()||!Number.isFinite(amount)||amount<=0)return report('वैध दिनांक और शून्य से अधिक राशि दर्ज करें।');
@@ -396,7 +402,7 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
   <div className="storage-notice">परीक्षण संस्करण · प्रविष्टियाँ आपके Firebase खाते (Google या अतिथि) के साथ Firestore में सिंक होती हैं। अतिथि डेटा को दूसरे डिवाइस पर सुरक्षित रखने के लिए Google खाते से जोड़ें। वास्तविक हिसाब Version 2.0 के स्थिर विमोचन के बाद दर्ज करें।</div>
   <section className="mode-strip">
    <div><b>लेजर प्रोफ़ाइल और सेटिंग्स</b><small>{store.settings.quickEntryEnabled?store.settings.quickEntryLabel+' · '+store.settings.defaultMilkman:'सामान्य प्रविष्टि · '+store.settings.currency}</small></div>
-   <button type="button" className="mode-settings" aria-expanded={settingsOpen} onClick={()=>setSettingsOpen(v=>!v)}>{settingsOpen?'बंद करें':'कॉन्फ़िगर करें'}</button>
+   <button type="button" className="mode-settings" aria-expanded={settingsOpen} disabled={!profileReady} onClick={()=>setSettingsOpen(v=>!v)}>{settingsOpen?'बंद करें':'कॉन्फ़िगर करें'}</button>
   </section>
   {settingsOpen&&<form className="account-settings-panel" onSubmit={saveAccountSettings}>
    <b>लेजर और खाता सेटिंग्स</b>
@@ -413,7 +419,7 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
     <small>सक्षम होने पर सप्लायर और दूध का प्रकार स्वतः भरे जाएँगे। दर स्थिर न रखने पर प्रत्येक प्रविष्टि में उसे बदला जा सकेगा।</small>
    </>}
    <label>फुटर नोट (वैकल्पिक)<input className="full-text" maxLength="120" value={settingsDraft.footerNote} onChange={e=>setSettingsDraft({...settingsDraft,footerNote:e.target.value})} placeholder="शाखा, संस्था या संपर्क विवरण"/></label>
-   <button type="submit">सेटिंग्स सुरक्षित करें</button>
+   <button type="submit" disabled={!profileReady}>सेटिंग्स सुरक्षित करें</button>
   </form>}
   <section className="hero">
    <div className="hero-top"><span>मासिक सारांश</span><label className="hero-month"><input aria-label="माह चुनें" type="month" value={month} onChange={e=>changeMonth(e.target.value)}/></label></div>
@@ -458,7 +464,7 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
      <label>टिप्पणी<textarea className="comment-input" rows="2" value={form.remarks} onChange={e=>setForm({...form,remarks:e.target.value})} placeholder="वैकल्पिक टिप्पणी"/></label>
      <b className="amount-preview">कुल राशि: {money(Number(form.quantity)*Number(form.rate))}</b>
      <p className="append-note">प्रविष्टि सुरक्षित होने के बाद बदली नहीं जा सकती; आवश्यकता हो तो हटाई जा सकती है।</p>
-     <div className="form-actions"><button>नई दूध प्रविष्टि सुरक्षित करें</button></div>
+     <div className="form-actions"><button disabled={!profileReady}>नई दूध प्रविष्टि सुरक्षित करें</button></div>
     </form>
     <div className="list-heading"><h2>इस अवधि की दूध प्रविष्टियाँ</h2><button className="secondary small-action" onClick={exportCsv}>मासिक CSV</button></div>
     <div className="record-list">{periodMilk.map(row=><article className="record" key={row.id}>
@@ -482,7 +488,7 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
      {txForm.kind==='expense'&&<label>खर्च का मद<RadioChoices name="expense-category" value={txForm.category} onChange={v=>setTxForm({...txForm,category:v})} options={expenseCategories}/></label>}
      <label>टिप्पणी<textarea className="comment-input" rows="2" value={txForm.remarks} onChange={e=>setTxForm({...txForm,remarks:e.target.value})} placeholder="वैकल्पिक टिप्पणी"/></label>
      <p className="append-note">हर लेन-देन नई प्रविष्टि है। इसे बदला नहीं जा सकता; आवश्यकता होने पर हटाया जा सकता है।</p>
-     <div className="form-actions"><button>नया लेन-देन सुरक्षित करें</button></div>
+     <div className="form-actions"><button disabled={!profileReady}>नया लेन-देन सुरक्षित करें</button></div>
     </form>
     <h2 className="section-title">इस अवधि के लेन-देन</h2>
     <div className="record-list">{periodTransactions.map(t=>{
