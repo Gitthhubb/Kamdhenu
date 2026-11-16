@@ -16,6 +16,16 @@ Kamdhenu can be installed on Android as a standalone PWA. Open https://mymilk.on
 
 See [Android installation instructions](docs/ANDROID_INSTALLATION.md). This is not an APK/AAB or a Play Store release; those require a separate signed Android/TWA package and domain association.
 
+## Local data and synchronisation
+
+Kamdhenu uses Firestore's persistent multi-tab IndexedDB cache on supported browsers. The application shell and previously viewed ledger month can open from local cache while Firestore synchronises in the background. Live milk and transaction listeners are limited to the selected calendar month; selecting an older month loads that month on demand.
+
+New records and deletions are applied locally and queued by Firestore while offline, then synchronised when connectivity returns. The sync strip distinguishes cached, pending, offline and server-confirmed states. A first device with no cached ledger still needs a connection to retrieve existing account data.
+
+**Privacy:** Firestore's web cache persists between sessions and is not automatically cleared on sign-out. Use Kamdhenu only on a trusted device; signing out does not erase its locally cached database.
+
+Complete JSON and Google Drive backups fetch the full ledger from Firestore on demand, so they require an active connection. The normal app startup does not download the entire history.
+
 ## Firebase setup
 **SDK compatibility:** Keep the Firebase Web SDK at `12.18.0` or later. The app currently pins `12.19.0`; Firebase `12.17.x` contains a known Google popup-auth IndexedDB visibility regression (`Database is closing/hidden`). A regression test enforces this minimum.
 
