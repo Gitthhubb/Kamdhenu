@@ -176,16 +176,16 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
  async function deleteMilk(id){
   if(!window.confirm('क्या इस दूध प्रविष्टि को स्थायी रूप से हटाना है?'))return;
   try{
-   const write=deleteDoc(doc(db,'users',user.uid,'milk',id));
-   write.catch(report);
+   await deleteDoc(doc(db,'users',user.uid,'milk',id));
+   setStore(current=>({...current,rows:current.rows.filter(row=>row.id!==id)}));
    success(navigator.onLine?'दूध प्रविष्टि हटाने का अनुरोध भेजा गया।':'प्रविष्टि स्थानीय रूप से हटाई गई; ऑनलाइन होने पर समन्वय होगा।');
   }catch(err){report(err)}
  }
  async function deleteTransaction(id){
   if(!window.confirm('क्या इस लेन-देन को स्थायी रूप से हटाना है?'))return;
   try{
-   const write=deleteDoc(doc(db,'users',user.uid,'transactions',id));
-   write.catch(report);
+   await deleteDoc(doc(db,'users',user.uid,'transactions',id));
+   setStore(current=>({...current,transactions:current.transactions.filter(row=>row.id!==id)}));
    success(navigator.onLine?'लेन-देन हटाने का अनुरोध भेजा गया।':'लेन-देन स्थानीय रूप से हटाया गया; ऑनलाइन होने पर समन्वय होगा।');
   }catch(err){report(err)}
  }
@@ -319,12 +319,14 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
   if(form.sale_date<periodStart||form.sale_date>periodEnd)return report('दिनांक चुने हुए पृष्ठ की अवधि में होनी चाहिए।');
   if(!form.sale_date||!milkman||!String(form.quantity).trim()||!String(form.rate).trim()||!Number.isFinite(quantity)||quantity<=0||!Number.isFinite(rate)||rate<0)return report('दिनांक, दूधवाले का नाम, शून्य से अधिक मात्रा और वैध दर दर्ज करें।');
   try{
-   const milkWrite=addDoc(collection(db,'users',user.uid,'milk'),{date:form.sale_date,shift:form.shift||'morning',milkman,milkType,quantity,rate,amount:Math.round(quantity*rate*100)/100,remarks:form.remarks.trim(),createdAt:serverTimestamp()});
-   milkWrite.catch(report);
-   const profileSaved=await persist({...store,buyers:[...new Set([...store.buyers,milkman])],rates:{...store.rates,[milkType+'_rate']:rate}});
-   setForm(configuredMilkForm(store.settings,store.rates));
+   const record={date:form.sale_date,shift:form.shift||'morning',milkman,milkType,quantity,rate,amount:Math.round(quantity*rate*100)/100,remarks:form.remarks.trim(),createdAt:serverTimestamp()};
+   const ref=await addDoc(collection(db,'users',user.uid,'milk'),record);
+   const row={id:ref.id,...record,sale_date:record.date,buyer:milkman,milk_type:milkType,created_at:new Date().toISOString()};
+   const next={...store,rows:[...store.rows,row],buyers:[...new Set([...store.buyers,milkman])],rates:{...store.rates,[milkType+'_rate']:rate}};
+   const profileSaved=await persist(next);
+   setForm(configuredMilkForm(next.settings,next.rates));
    const feedback=getMilkSaveFeedback(profileSaved);
-   if(profileSaved)success(navigator.onLine?'दूध प्रविष्टि स्थानीय रूप से सुरक्षित; सर्वर से समन्वय जारी है।':'प्रविष्टि स्थानीय रूप से सुरक्षित; इंटरनेट उपलब्ध होने पर समन्वय होगा।');else report(feedback.message);
+   if(profileSaved)success(navigator.onLine?'प्रविष्टि स्थानीय रूप से सुरक्षित; सर्वर से समन्वय जारी है।':'प्रविष्टि स्थानीय रूप से सुरक्षित; इंटरनेट उपलब्ध होने पर समन्वय होगा।');else report(feedback.message);
   }catch(err){report(err)}
  }
  async function saveTransaction(e){
@@ -335,8 +337,9 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
   if(!txForm.date||!String(txForm.amount).trim()||!Number.isFinite(amount)||amount<=0)return report('वैध दिनांक और शून्य से अधिक राशि दर्ज करें।');
   if(txForm.kind==='expense'&&!txForm.category)return report('खर्च का मद चुनें।');
   try{
-   const transactionWrite=addDoc(collection(db,'users',user.uid,'transactions'),{date:txForm.date,kind:txForm.kind,amount,party:txForm.party.trim(),category:txForm.kind==='expense'?txForm.category:'',remarks:txForm.remarks.trim(),createdAt:serverTimestamp()});
-   transactionWrite.catch(report);
+   const record={date:txForm.date,kind:txForm.kind,amount,party:txForm.party.trim(),category:txForm.kind==='expense'?txForm.category:'',remarks:txForm.remarks.trim(),createdAt:serverTimestamp()};
+   const ref=await addDoc(collection(db,'users',user.uid,'transactions'),record);
+   setStore(current=>({...current,transactions:[...current.transactions,{id:ref.id,...record,created_at:new Date().toISOString()}]}));
    setTxForm(blankTransaction());success(navigator.onLine?'लेन-देन स्थानीय रूप से सुरक्षित; सर्वर से समन्वय जारी है।':'लेन-देन स्थानीय रूप से सुरक्षित; इंटरनेट उपलब्ध होने पर समन्वय होगा।');
   }catch(err){report(err)}
  }
