@@ -184,10 +184,10 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
   if(!window.confirm('अतिथि सत्र छोड़ने पर इस ब्राउज़र से अतिथि खाते की पहुँच हट जाएगी। पहले Google खाते से जोड़ें या JSON बैकअप लें। क्या सत्र छोड़ना है?'))return;
   try{await signOut(auth)}catch(err){report(err)}
  }
- function persist(next){
+ function persist(next,includeSettings=settingsReady){
   try{
    const profilePatch={rates:next.rates,buyers:next.buyers,updatedAt:serverTimestamp()};
-   if(settingsReady)profilePatch.settings=next.settings;
+   if(includeSettings)profilePatch.settings=next.settings;
    const write=setDoc(doc(db,'users',user.uid),profilePatch,{merge:true});
    write.catch(report);
    setStore(next);
@@ -268,12 +268,20 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
    if(item.id)await setDoc(doc(transactionCollection,item.id),payload);
    else await addDoc(transactionCollection,payload);
   }
+  const profileSnapshot=await getDocFromServer(doc(db,'users',user.uid));
+  const remoteProfile=profileSnapshot.exists()?profileSnapshot.data():{};
+  const restoreBase={...store,
+   rates:{...store.rates,...(remoteProfile.rates||{})},
+   buyers:[...new Set([...store.buyers,...(Array.isArray(remoteProfile.buyers)?remoteProfile.buyers:[])])],
+   settings:normalizeSettings(remoteProfile.settings||store.settings,remoteProfile.rates||store.rates),
+  };
   const profileSaved=await persist({
-   ...store,
-   rates:{...store.rates,...backup.rates},
-   buyers:[...new Set([...store.buyers,...backup.buyers])],
-   settings:{...store.settings,...backup.settings},
-  });
+   ...restoreBase,
+   rates:{...restoreBase.rates,...backup.rates},
+   buyers:[...new Set([...restoreBase.buyers,...backup.buyers])],
+   settings:{...restoreBase.settings,...backup.settings},
+  },true);
+  setSettingsReady(true);
   if(!profileSaved){
    throw new Error('बैकअप की प्रविष्टियाँ जोड़ी गई हैं, लेकिन दरें और सेटिंग्स सुरक्षित नहीं हो सकीं। JSON बैकअप दोबारा पुनर्स्थापित करें; जो प्रविष्टियाँ पहले जुड़ चुकी हैं वे दोहराई नहीं जाएँगी।');
   }
