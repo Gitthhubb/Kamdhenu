@@ -53,7 +53,7 @@ test('normalises a valid backup while preserving source document IDs', () => {
       category: 'cattle_feed',
       remarks: '',
     }],
-    rates: { cow_rate: 60, buffalo_rate: 70 },
+    rates: { cow_rate: 60, buffalo_rate: 70, goat_rate: 80 },
     buyers: ['राम'],
     settings: {
       ledgerName: 'कामधेनु',
@@ -179,6 +179,7 @@ test('restores custom catalogue values and preserves historical display labels',
     },
   });
   const result = validateBackupPayload(backup);
+  assert.equal(result.rates.goat_rate, 80);
   assert.equal(result.rows[0].milkType, 'goat');
   assert.equal(result.rows[0].milkTypeLabel, 'बकरी');
   assert.equal(result.rows[0].shiftLabel, 'रात्रि');
