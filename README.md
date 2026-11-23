@@ -91,3 +91,16 @@ Firestore Spark provides a daily free quota: 1 GiB stored data, 50,000 reads, 20
 npm install
 npm run dev
 ```
+
+
+## Local-first operation and manual synchronisation
+
+Kamdhenu uses Firestore's persistent IndexedDB cache for account-scoped local data. Routine startup and month navigation read from that cache and do not initiate server downloads. New entries and deletions are written through Firestore's offline-capable local write queue and appear in the interface immediately. Pending writes are synchronised by Firestore when connectivity is available.
+
+Use **Sync Now** to retrieve the latest account profile and the currently selected month's milk and transaction records from the server, including changes made on another device. Sync Now is an explicit read/refresh operation; it is not required to submit a new entry. Full-history server reads remain reserved for explicit backup and restore operations.
+
+If an account's profile is not present in the local cache, entry recording remains available, but configuration editing stays disabled until Sync Now retrieves the server profile. This prevents default settings on a new device from overwriting an existing remote profile.
+
+## Configurable fixed-entry catalogues
+
+Account settings support configurable milk types, shifts, transaction kinds and expense categories. Options can be added, renamed or deactivated. Stable catalogue keys and label snapshots preserve the meaning and display of historical records. At least one active option is retained in each catalogue. Numeric milk quantities and transaction amounts remain entry data, not configuration values.
