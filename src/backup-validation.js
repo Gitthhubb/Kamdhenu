@@ -71,6 +71,7 @@ function validateTransactions(rows, catalogues) {
     const record = normalizeTransactionRecord(row);
     if (!validDate(record.date)) fail(`${label}: वैध YYYY-MM-DD दिनांक दर्ज नहीं है।`);
     if (!catalogues.transactionKinds.some(item => item.value === record.kind)) fail(`${label}: प्रकार खाता कॉन्फ़िगरेशन में मान्य नहीं है।`);
+    if (record.kind === 'expense' && !catalogues.expenseCategories.some(item => item.value === record.category)) fail(`${label}: खर्च का मद खाता कॉन्फ़िगरेशन में मान्य नहीं है।`);
 
     const amount = finiteNumber(row.amount);
     if (!Number.isFinite(amount) || amount <= 0) fail(`${label}: राशि शून्य से अधिक वैध संख्या होनी चाहिए।`);
