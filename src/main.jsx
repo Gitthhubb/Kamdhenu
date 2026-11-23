@@ -16,6 +16,7 @@ import{DEFAULT_SETTINGS,normalizeSettings,SUPPORTED_CURRENCIES}from'./app-settin
 const today=()=>{const d=new Date();return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-')};
 const number=n=>new Intl.NumberFormat('hi-IN',{maximumFractionDigits:2}).format(Number(n)||0);
 const catalogueLabel=(items,key,fallback='')=>items?.find(item=>item.value===key)?.label||fallback||key;
+const historicalCatalogueLabel=(items,key,fallback='')=>{const item=items?.find(entry=>entry.value===key);return item?.historicalLabel||item?.label||fallback||key};
 const milkLabel=(k,catalogues)=>catalogueLabel(catalogues?.milkTypes,k,k==='cow'?'गाय':k==='buffalo'?'भैंस':k);
 const shiftLabel=(k,catalogues)=>catalogueLabel(catalogues?.shifts,k,k==='morning'?'सुबह':k==='evening'?'शाम':'समय दर्ज नहीं');
 const DEFAULT_STATE={rows:[],transactions:[],rates:{cow_rate:0,buffalo_rate:0},buyers:[],settings:{...DEFAULT_SETTINGS}};
@@ -42,7 +43,7 @@ function RadioChoices({value,onChange,options,name}){
 function CatalogueEditor({title,items,onChange,onAdd,showEffects=false}){
  return <fieldset className="catalogue-editor"><legend>{title}</legend>
   {items.map((item,index)=><div className="catalogue-option" key={item.value}>
-   <input aria-label={title+' का नाम'} maxLength="60" value={item.label} onChange={e=>onChange(items.map(x=>x.value===item.value?{...x,label:e.target.value}:x))}/>
+   <input aria-label={title+' का नाम'} maxLength="60" value={item.label} onChange={e=>onChange(items.map(x=>x.value===item.value?{...x,historicalLabel:x.historicalLabel||x.label,label:e.target.value}:x))}/>
    {showEffects&&<select aria-label={title+' का लेखा प्रभाव'} value={item.effect||'received'} onChange={e=>onChange(items.map(x=>x.value===item.value?{...x,effect:e.target.value}:x))}><option value="received">जमा</option><option value="remained">बाकी</option><option value="advance">अग्रिम</option><option value="expense">खर्च</option></select>}
    <label><input type="checkbox" checked={item.active} disabled={item.active&&items.filter(x=>x.active).length===1} onChange={e=>onChange(items.map(x=>x.value===item.value?{...x,active:e.target.checked}:x))}/> सक्रिय</label>
    <div className="catalogue-order"><button type="button" disabled={index===0} aria-label="ऊपर करें" onClick={()=>{const next=[...items];[next[index-1],next[index]]=[next[index],next[index-1]];onChange(next)}}>↑</button><button type="button" disabled={index===items.length-1} aria-label="नीचे करें" onClick={()=>{const next=[...items];[next[index+1],next[index]]=[next[index],next[index+1]];onChange(next)}}>↓</button></div>
@@ -387,7 +388,7 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
  }
  function exportCsv(){
   const data=store.rows.filter(x=>x.sale_date.startsWith(month)).sort(sortNewest);
-  const lines=[['दिनांक','दूधवाला','समय','दूध का प्रकार','मात्रा (लीटर)','दर','राशि','टिप्पणी'],...data.map(x=>[x.sale_date,x.buyer,x.shiftLabel||shiftLabel(x.shift,store.settings.catalogues),x.milkTypeLabel||milkLabel(x.milk_type,store.settings.catalogues),x.quantity,x.rate,x.amount,x.remarks||''])];
+  const lines=[['दिनांक','दूधवाला','समय','दूध का प्रकार','मात्रा (लीटर)','दर','राशि','टिप्पणी'],...data.map(x=>[x.sale_date,x.buyer,x.shiftLabel||historicalCatalogueLabel(store.settings.catalogues.shifts,x.shift,'समय दर्ज नहीं'),x.milkTypeLabel||historicalCatalogueLabel(store.settings.catalogues.milkTypes,x.milk_type),x.quantity,x.rate,x.amount,x.remarks||''])];
   const csv=lines.map(row=>row.map(x=>{let v=String(x??'');if(/^[\\t\\r ]*[=+@-]/.test(v))v="'"+v;return '"'+v.replaceAll('"','""')+'"'}).join(',')).join('\r\n');
   const url=URL.createObjectURL(new Blob(['\\ufeff'+csv],{type:'text/csv;charset=utf-8'})),a=document.createElement('a');a.href=url;a.download='kamdhenu-doodh-'+month+'.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
  }
@@ -514,7 +515,7 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
     </form>
     <div className="list-heading"><h2>इस अवधि की दूध प्रविष्टियाँ</h2><button className="secondary small-action" onClick={exportCsv}>मासिक CSV</button></div>
     <div className="record-list">{periodMilk.map(row=><article className="record" key={row.id}>
-     <div><b>{row.buyer}</b><small>{row.sale_date} · {row.shiftLabel||shiftLabel(row.shift,store.settings.catalogues)} · {row.milkTypeLabel||milkLabel(row.milk_type,store.settings.catalogues)} · {number(row.quantity)} लीटर × {money(row.rate)}</small>{row.remarks&&<small>{row.remarks}</small>}</div>
+     <div><b>{row.buyer}</b><small>{row.sale_date} · {row.shiftLabel||historicalCatalogueLabel(store.settings.catalogues.shifts,row.shift,'समय दर्ज नहीं')} · {row.milkTypeLabel||historicalCatalogueLabel(store.settings.catalogues.milkTypes,row.milk_type)} · {number(row.quantity)} लीटर × {money(row.rate)}</small>{row.remarks&&<small>{row.remarks}</small>}</div>
      <strong>{money(row.amount)}</strong><div className="record-actions"><button type="button" className="delete-record" onClick={()=>deleteMilk(row.id)}>हटाएँ</button></div>
     </article>)}{!periodMilk.length&&<p className="empty">इस अवधि में कोई दूध प्रविष्टि नहीं है।</p>}</div>
    </>}
