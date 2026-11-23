@@ -107,7 +107,7 @@ test('entry writes and deletions update local UI without awaiting server acknowl
   assert.match(txSave, /setStore\(current=>/);
   assert.doesNotMatch(txSave, /await addDoc|await setDoc/);
   assert.doesNotMatch(deleteMilk+deleteTx, /await deleteDoc/);
-  assert.match(milkSave, /milkWrite\.catch\(err=>\{setStore/);
-  assert.match(txSave, /transactionWrite\.catch\(err=>\{setStore/);
-  assert.match(deleteMilk+deleteTx, /deletion\.catch\(err=>\{/);
+  assert.match(milkSave, /trackWrite\(milkWrite/);
+  assert.match(txSave, /trackWrite\(transactionWrite/);
+  assert.match(deleteMilk+deleteTx, /trackWrite\(deletion/);
 });
