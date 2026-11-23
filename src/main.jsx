@@ -26,14 +26,6 @@ const configuredMilkForm=(settings,rates)=>{
 };
 const configuredTransactionForm=settings=>({...blankTransaction(),kind:settings.catalogues.transactionKinds.find(item=>item.active)?.value||'received',category:settings.catalogues.expenseCategories.find(item=>item.active)?.value||'others'});
 const blankTransaction=()=>({date:today(),kind:'received',amount:'',party:'',category:'paddy_stalk',remarks:''});
-const expenseCategories=[
- {value:'paddy_stalk',label:'धान का पुआल'},
- {value:'cattle_feed',label:'पशु आहार'},
- {value:'khali',label:'खली'},
- {value:'chokar',label:'चोकर'},
- {value:'wheat_straw',label:'गेहूँ का भूसा'},
- {value:'others',label:'अन्य'}
-];
 const sortNewest=(a,b)=>{
  const ad=a.sale_date||a.date||'',bd=b.sale_date||b.date||'';
  return bd.localeCompare(ad)||String(b.created_at||'').localeCompare(String(a.created_at||''));
@@ -51,7 +43,7 @@ function CatalogueEditor({title,items,onChange,onAdd}){
  return <fieldset className="catalogue-editor"><legend>{title}</legend>
   {items.map(item=><div className="catalogue-option" key={item.value}>
    <input aria-label={title+' का नाम'} maxLength="60" value={item.label} onChange={e=>onChange(items.map(x=>x.value===item.value?{...x,label:e.target.value}:x))}/>
-   <label><input type="checkbox" checked={item.active} onChange={e=>onChange(items.map(x=>x.value===item.value?{...x,active:e.target.checked}:x))}/> सक्रिय</label>
+   <label><input type="checkbox" checked={item.active} disabled={item.active&&items.filter(x=>x.active).length===1} onChange={e=>onChange(items.map(x=>x.value===item.value?{...x,active:e.target.checked}:x))}/> सक्रिय</label>
   </div>)}
   <button type="button" className="secondary" onClick={onAdd}>विकल्प जोड़ें</button>
  </fieldset>;
@@ -165,6 +157,7 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
   if(await persist(next)){
    setSettingsDraft(settings);
    setForm(configuredMilkForm(settings,next.rates));
+   setTxForm(configuredTransactionForm(settings));
    setSettingsOpen(false);
    success('आपकी लेजर प्रोफ़ाइल और प्रविष्टि सेटिंग्स सुरक्षित हो गईं।');
   }
