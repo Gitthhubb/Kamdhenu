@@ -1,4 +1,4 @@
-import React,{useEffect,useState}from'react';
+import React,{useEffect,useRef,useState}from'react';
 import{createRoot}from'react-dom/client';
 import'./style.css';
 import{getCloudLoadingError}from'./cloud-error';
@@ -53,6 +53,8 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
  const [store,setStore]=useState(initial);
  const [tab,setTab]=useState(()=>new URLSearchParams(window.location.search).get('tab')==='transactions'?'Transactions':'Milk');
  const [month,setMonth]=useState(today().slice(0,7));
+ const monthRef=useRef(month);
+ useEffect(()=>{monthRef.current=month},[month]);
  const [periodPage,setPeriodPage]=useState(Math.min(3,Math.ceil(Number(today().slice(8,10))/10)));
  const [error,setError]=useState('');
  const [notice,setNotice]=useState('');
@@ -117,9 +119,10 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
 
  async function syncNow(){
   if(syncBusy||!navigator.onLine){setSyncStatus('offline');return}
+  const syncMonth=month;
   setSyncBusy(true);setSyncStatus('syncing');
   try{
-   const {startDate,endDateExclusive}=getMonthDateRange(month);
+   const {startDate,endDateExclusive}=getMonthDateRange(syncMonth);
    const milkQuery=query(collection(db,'users',user.uid,'milk'),where('date','>=',startDate),where('date','<',endDateExclusive),orderBy('date','desc'));
    const transactionQuery=query(collection(db,'users',user.uid,'transactions'),where('date','>=',startDate),where('date','<',endDateExclusive),orderBy('date','desc'));
    const [profileSnap,milkSnap,txSnap]=await Promise.all([
@@ -127,7 +130,7 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
     getDocsFromServer(milkQuery),
     getDocsFromServer(transactionQuery)
    ]);
-   if(!auth.currentUser||auth.currentUser.uid!==user.uid)return;
+   if(!auth.currentUser||auth.currentUser.uid!==user.uid||monthRef.current!==syncMonth)return;
    const profile=profileSnap.exists()?profileSnap.data():{};
    const [cachedMilk,cachedTx]=await Promise.all([getDocsFromCache(milkQuery).catch(()=>null),getDocsFromCache(transactionQuery).catch(()=>null)]);
    const milkById=new Map(milkSnap.docs.map(d=>[d.id,{id:d.id,...d.data(),sale_date:d.data().date,buyer:d.data().milkman,milk_type:d.data().milkType,created_at:d.data().createdAt?.toDate?.()?.toISOString?.()||''}]));
