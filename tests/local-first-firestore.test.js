@@ -99,7 +99,7 @@ test('entry writes and deletions update local UI without awaiting server acknowl
   const deleteMilk = source.slice(source.indexOf('async function deleteMilk'), source.indexOf('async function deleteTransaction'));
   const deleteTx = source.slice(source.indexOf('async function deleteTransaction'), source.indexOf('function selectPeriodPage'));
   assert.match(milkSave, /const ref=doc\(collection/);
-  assert.match(milkSave, /setStore\(next\)/);
+  assert.match(milkSave, /persist\(next\)/);
   assert.doesNotMatch(milkSave, /await addDoc|await setDoc/);
   assert.match(txSave, /const ref=doc\(collection/);
   assert.match(txSave, /setStore\(current=>/);
