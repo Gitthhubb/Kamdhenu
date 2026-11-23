@@ -235,6 +235,7 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
   selectPeriodPage(page,value);
  }
  async function loadCompleteLedgerData(){
+  await waitForPendingWrites(db);
   const milkCollection=collection(db,'users',user.uid,'milk');
   const transactionCollection=collection(db,'users',user.uid,'transactions');
   const [milkSnapshot,transactionSnapshot]=await Promise.all([
@@ -259,6 +260,7 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
  async function restoreBackupData(d){
   const backup=validateBackupPayload(d);
   if(!window.confirm('क्या बैकअप की केवल नई प्रविष्टियाँ जोड़नी हैं? मौजूदा प्रविष्टियाँ बदली या हटाई नहीं जाएँगी।'))return;
+  await waitForPendingWrites(db);
   const milkCollection=collection(db,'users',user.uid,'milk');
   const transactionCollection=collection(db,'users',user.uid,'transactions');
   const [milkSnapshot,transactionSnapshot]=await Promise.all([getDocsFromServer(query(milkCollection,orderBy('date','desc'))),getDocsFromServer(query(transactionCollection,orderBy('date','desc')))]);
