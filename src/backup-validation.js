@@ -87,10 +87,10 @@ function validateTransactions(rows, catalogues) {
   });
 }
 
-function validateRates(value) {
+function validateRates(value, catalogues) {
   if (!isObject(value)) fail('बैकअप की दरें सही प्रारूप में नहीं हैं।');
   const rates = {};
-  for (const key of ['cow_rate', 'buffalo_rate']) {
+  for (const key of catalogues.milkTypes.map(item => item.value + '_rate')) {
     const rate = finiteNumber(value[key] ?? 0);
     if (!Number.isFinite(rate) || rate < 0) {
       fail(`बैकअप की दरें: ${key} शून्य या उससे अधिक वैध संख्या होनी चाहिए।`);
@@ -179,7 +179,7 @@ export function validateBackupPayload(payload) {
   return {
     rows: validateMilkRows(payload.rows, settings.catalogues),
     transactions: validateTransactions(payload.transactions, settings.catalogues),
-    rates: validateRates(payload.rates),
+    rates: validateRates(payload.rates, settings.catalogues),
     buyers: validateBuyers(payload.buyers),
     settings,
   };
