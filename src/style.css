@@ -20,3 +20,5 @@
 .sync-status.sync-synced{background:#edf7ee;border-color:#dbe9dc;color:#285b40}
 .sync-status.sync-offline,.sync-status.sync-error{background:#fff8e9;border-color:#eee0bf;color:#77613b}
 .sync-status.sync-pending{background:#fff8e9;border-color:#eee0bf;color:#77613b}
+
+.sync-action-row{display:flex;justify-content:flex-end;margin:5px 10px 0}.sync-now{padding:7px 11px;font-size:10px;background:#285b40;color:#fff;border:1px solid #285b40}.sync-now:disabled{opacity:.55;cursor:not-allowed}
