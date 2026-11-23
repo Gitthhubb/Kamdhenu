@@ -48,19 +48,19 @@ test('renders the application shell without waiting for Firestore readiness', as
 
 test('routine startup and month changes use cache-only reads, not live server listeners', async () => {
   const source = await read('../src/main.jsx');
-  assert.match(source, /getMonthDateRange\\(month\\)/);
-  assert.match(source, /getDocFromCache\\(/);
-  assert.match(source, /getDocsFromCache\\(/);
-  assert.doesNotMatch(source, /onSnapshot\\(/);
-  assert.doesNotMatch(source.slice(source.indexOf('useEffect(()=>{\\n  if(!user?.uid)return;'), source.indexOf('async function syncNow')), /getDocFromServer|getDocsFromServer/);
+  assert.match(source, /getMonthDateRange\(month\)/);
+  assert.match(source, /getDocFromCache\(/);
+  assert.match(source, /getDocsFromCache\(/);
+  assert.doesNotMatch(source, /onSnapshot\(/);
+  assert.doesNotMatch(source.slice(source.indexOf('useEffect(()=>{\n  if(!user?.uid)return;'), source.indexOf('async function syncNow')), /getDocFromServer|getDocsFromServer/);
 });
 
 test('explicit Sync Now refreshes the profile and selected-month records from server', async () => {
   const source = await read('../src/main.jsx');
   const sync = source.slice(source.indexOf('async function syncNow'), source.indexOf('async function saveAccountSettings'));
   assert.match(source, /अभी सिंक करें/);
-  assert.match(sync, /getDocFromServer\\(/);
-  assert.equal((sync.match(/getDocsFromServer\\(/g) || []).length, 2);
+  assert.match(sync, /getDocFromServer\(/);
+  assert.equal((sync.match(/getDocsFromServer\(/g) || []).length, 2);
   assert.match(sync, /hasPendingWrites/);
 });
 
@@ -82,6 +82,6 @@ test('restore deduplication checks complete server-side collections', async () =
 
 test('cache miss does not gate account UI indefinitely', async () => {
   const source = await read('../src/main.jsx');
-  assert.match(source, /setProfileReady\\(true\\)/);
-  assert.ok((source.match(/disabled=\\{!profileReady\\}/g) || []).length >= 3);
+  assert.match(source, /setProfileReady\(true\)/);
+  assert.ok((source.match(/disabled=\{!profileReady\}/g) || []).length >= 3);
 });
