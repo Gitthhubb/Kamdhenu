@@ -84,7 +84,6 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
   const transactionQuery=query(collection(db,'users',user.uid,'transactions'),where('date','>=',startDate),where('date','<',endDateExclusive),orderBy('date','desc'));
   const loadCached=async()=>{
    try{
-    await waitForPendingWrites(db);
    const [profileSnap,milkSnap,txSnap]=await Promise.all([
      getDocFromCache(doc(db,'users',user.uid)).catch(()=>null),
      getDocsFromCache(milkQuery).catch(()=>null),
