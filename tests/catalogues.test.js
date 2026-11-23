@@ -10,9 +10,15 @@ test('provides reusable defaults for every fixed-entry catalogue', () => {
 
 test('preserves stable keys when labels are renamed and options are deactivated', () => {
   const result = normalizeCatalogues({
-    milkTypes: [{ value: 'cow', label: 'गौ-दुग्ध', active: false }],
+    milkTypes: [
+      { value: 'cow', label: 'गौ-दुग्ध', active: false },
+      { value: 'buffalo', label: 'भैंस', active: true },
+    ],
   });
-  assert.deepEqual(result.milkTypes, [{ value: 'cow', label: 'गौ-दुग्ध', active: false }]);
+  assert.deepEqual(result.milkTypes, [
+    { value: 'cow', label: 'गौ-दुग्ध', active: false },
+    { value: 'buffalo', label: 'भैंस', active: true },
+  ]);
 });
 
 test('rejects duplicate or malformed keys and falls back when no active option remains', () => {
