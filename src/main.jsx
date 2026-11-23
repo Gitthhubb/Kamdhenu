@@ -69,6 +69,7 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
  const [syncStatus,setSyncStatus]=useState('loading');
  const [syncBusy,setSyncBusy]=useState(false);
  const pendingWritesRef=useRef(0);
+ const pendingUidRef=useRef(user?.uid);
  const [profileReady,setProfileReady]=useState(false);
  const [settingsReady,setSettingsReady]=useState(false);
  const [driveBusy,setDriveBusy]=useState(false);
@@ -81,7 +82,7 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
   if(!user?.uid)return;
   let active=true;
   const cacheVersion=syncVersionRef.current;
-  pendingWritesRef.current=0;
+  if(pendingUidRef.current!==user.uid){pendingWritesRef.current=0;pendingUidRef.current=user.uid}
   setSyncStatus(navigator.onLine?'loading':'offline');
   setProfileReady(false);
   setSettingsReady(false);
