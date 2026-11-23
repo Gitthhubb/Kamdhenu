@@ -20,6 +20,7 @@ export function normalizeTransactionRecord(row = {}) {
     date: String(row.date ?? ''),
     kind: String(row.kind ?? ''),
     ...(typeof row.kindLabel === 'string' ? { kindLabel: row.kindLabel.slice(0, 60) } : {}),
+    ...(typeof row.kindEffect === 'string' ? { kindEffect: row.kindEffect } : {}),
     amount: Number(row.amount),
     party: String(row.party ?? ''),
     category: String(row.category ?? ''),
