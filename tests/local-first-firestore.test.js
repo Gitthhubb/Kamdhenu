@@ -46,12 +46,22 @@ test('renders the application shell without waiting for Firestore readiness', as
   assert.match(source, /sync-status/);
 });
 
-test('bounds live milk and transaction listeners to the selected month', async () => {
+test('routine startup and month changes use cache-only reads, not live server listeners', async () => {
   const source = await read('../src/main.jsx');
-  assert.match(source, /getMonthDateRange\(month\)/);
-  assert.match(source, /where\('date','>=',startDate\)/);
-  assert.match(source, /where\('date','<',endDateExclusive\)/);
-  assert.match(source, /includeMetadataChanges:\s*true/);
+  assert.match(source, /getMonthDateRange\\(month\\)/);
+  assert.match(source, /getDocFromCache\\(/);
+  assert.match(source, /getDocsFromCache\\(/);
+  assert.doesNotMatch(source, /onSnapshot\\(/);
+  assert.doesNotMatch(source.slice(source.indexOf('useEffect(()=>{\\n  if(!user?.uid)return;'), source.indexOf('async function syncNow')), /getDocFromServer|getDocsFromServer/);
+});
+
+test('explicit Sync Now refreshes the profile and selected-month records from server', async () => {
+  const source = await read('../src/main.jsx');
+  const sync = source.slice(source.indexOf('async function syncNow'), source.indexOf('async function saveAccountSettings'));
+  assert.match(source, /अभी सिंक करें/);
+  assert.match(sync, /getDocFromServer\\(/);
+  assert.equal((sync.match(/getDocsFromServer\\(/g) || []).length, 2);
+  assert.match(sync, /hasPendingWrites/);
 });
 
 test('JSON and Drive backups fetch complete history rather than the selected month', async () => {
@@ -70,8 +80,8 @@ test('restore deduplication checks complete server-side collections', async () =
   assert.doesNotMatch(restore, /getDocs\(/);
 });
 
-test('does not allow profile-backed writes until cached or server-confirmed account settings are available', async () => {
+test('cache miss does not gate account UI indefinitely', async () => {
   const source = await read('../src/main.jsx');
-  assert.match(source, /setProfileReady\(!snap\.metadata\.fromCache\s*\|\|\s*snap\.exists\(\)\)/);
-  assert.ok((source.match(/disabled=\{!profileReady\}/g) || []).length >= 3);
+  assert.match(source, /setProfileReady\\(true\\)/);
+  assert.ok((source.match(/disabled=\\{!profileReady\\}/g) || []).length >= 3);
 });
