@@ -87,7 +87,7 @@ test('cache miss does not gate account UI indefinitely', async () => {
   const source = await read('../src/main.jsx');
   assert.match(source, /setProfileReady\(true\)/);
   assert.match(source, /setSettingsReady\(Boolean\(profileSnap\)\)/);
-  assert.match(source, /if\(settingsReady\)profilePatch\.settings=next\.settings/);
+  assert.match(source, /if\(includeSettings\)profilePatch\.settings=next\.settings/);
   assert.ok((source.match(/disabled=\{!profileReady\}/g) || []).length >= 2);
   assert.match(source, /disabled=\{!settingsReady\}/);
 });
