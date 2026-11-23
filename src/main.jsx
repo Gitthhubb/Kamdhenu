@@ -128,6 +128,7 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
    const {startDate,endDateExclusive}=getMonthDateRange(syncMonth);
    const milkQuery=query(collection(db,'users',user.uid,'milk'),where('date','>=',startDate),where('date','<',endDateExclusive),orderBy('date','desc'));
    const transactionQuery=query(collection(db,'users',user.uid,'transactions'),where('date','>=',startDate),where('date','<',endDateExclusive),orderBy('date','desc'));
+   await waitForPendingWrites(db);
    const [profileSnap,milkSnap,txSnap]=await Promise.all([
     getDocFromServer(doc(db,'users',user.uid)),
     getDocsFromServer(milkQuery),
