@@ -41,10 +41,11 @@ function RadioChoices({value,onChange,options,name}){
 }
 function CatalogueEditor({title,items,onChange,onAdd,showEffects=false}){
  return <fieldset className="catalogue-editor"><legend>{title}</legend>
-  {items.map(item=><div className="catalogue-option" key={item.value}>
+  {items.map((item,index)=><div className="catalogue-option" key={item.value}>
    <input aria-label={title+' का नाम'} maxLength="60" value={item.label} onChange={e=>onChange(items.map(x=>x.value===item.value?{...x,label:e.target.value}:x))}/>
    {showEffects&&<select aria-label={title+' का लेखा प्रभाव'} value={item.effect||'received'} onChange={e=>onChange(items.map(x=>x.value===item.value?{...x,effect:e.target.value}:x))}><option value="received">जमा</option><option value="remained">बाकी</option><option value="advance">अग्रिम</option><option value="expense">खर्च</option></select>}
    <label><input type="checkbox" checked={item.active} disabled={item.active&&items.filter(x=>x.active).length===1} onChange={e=>onChange(items.map(x=>x.value===item.value?{...x,active:e.target.checked}:x))}/> सक्रिय</label>
+   <div className="catalogue-order"><button type="button" disabled={index===0} aria-label="ऊपर करें" onClick={()=>{const next=[...items];[next[index-1],next[index]]=[next[index],next[index-1]];onChange(next)}}>↑</button><button type="button" disabled={index===items.length-1} aria-label="नीचे करें" onClick={()=>{const next=[...items];[next[index+1],next[index]]=[next[index],next[index+1]];onChange(next)}}>↓</button></div>
   </div>)}
   <button type="button" className="secondary" onClick={onAdd}>विकल्प जोड़ें</button>
  </fieldset>;
