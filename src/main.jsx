@@ -10,7 +10,7 @@ import{getMonthDateRange}from'./ledger-query';
 import{isFirebaseConfigured,auth,googleProvider,db}from'./firebase';
 import{onAuthStateChanged,signInWithPopup,signInAnonymously,linkWithPopup,signOut}from'firebase/auth';
 import{normalizeMilkRecord,normalizeTransactionRecord,planRestoreMerge}from'./restore-merge';
-import{collection,doc,setDoc,addDoc,deleteDoc,getDocFromCache,getDocFromServer,getDocsFromCache,getDocsFromServer,query,where,orderBy,serverTimestamp}from'firebase/firestore';
+import{collection,doc,setDoc,addDoc,deleteDoc,getDocFromCache,getDocFromServer,getDocsFromCache,getDocsFromServer,query,where,orderBy,serverTimestamp,waitForPendingWrites}from'firebase/firestore';
 import{DEFAULT_SETTINGS,normalizeSettings,SUPPORTED_CURRENCIES}from'./app-settings';
 
 const today=()=>{const d=new Date();return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-')};
@@ -74,7 +74,8 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
   const transactionQuery=query(collection(db,'users',user.uid,'transactions'),where('date','>=',startDate),where('date','<',endDateExclusive),orderBy('date','desc'));
   const loadCached=async()=>{
    try{
-    const [profileSnap,milkSnap,txSnap]=await Promise.all([
+    await waitForPendingWrites(db);
+   const [profileSnap,milkSnap,txSnap]=await Promise.all([
      getDocFromCache(doc(db,'users',user.uid)).catch(()=>null),
      getDocsFromCache(milkQuery).catch(()=>null),
      getDocsFromCache(transactionQuery).catch(()=>null)
@@ -99,7 +100,7 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
   return()=>{active=false};
  },[user?.uid,month]);
  useEffect(()=>{
-  const online=()=>setSyncStatus('syncing');
+  const online=()=>setSyncStatus('cached');
   const offline=()=>setSyncStatus('offline');
   window.addEventListener('online',online);
   window.addEventListener('offline',offline);
