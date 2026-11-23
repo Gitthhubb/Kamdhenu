@@ -156,3 +156,32 @@ test('rejects an enabled quick-entry profile without its required supplier and r
   });
   assert.throws(() => validateBackupPayload(backup), /त्वरित प्रविष्टि प्रोफ़ाइल चालू करने/);
 });
+
+test('restores custom catalogue values and preserves historical display labels', () => {
+  const backup = validBackup({
+    rows: [{
+      id: 'milk-custom', date: '2026-11-12', shift: 'night', shiftLabel: 'रात्रि',
+      milkman: 'सीमा', milkType: 'goat', milkTypeLabel: 'बकरी',
+      quantity: 1, rate: 80, amount: 80, remarks: '',
+    }],
+    transactions: [{
+      id: 'tx-custom', date: '2026-11-12', kind: 'feed_credit', kindLabel: 'चारा उधार',
+      amount: 100, party: 'दुकान', category: 'mineral_mix', categoryLabel: 'खनिज मिश्रण', remarks: '',
+    }],
+    settings: {
+      defaultMilkType: 'goat',
+      catalogues: {
+        milkTypes: [{ value: 'goat', label: 'बकरी', active: true }],
+        shifts: [{ value: 'night', label: 'रात्रि', active: true }],
+        transactionKinds: [{ value: 'feed_credit', label: 'चारा उधार', active: true }],
+        expenseCategories: [{ value: 'mineral_mix', label: 'खनिज मिश्रण', active: true }],
+      },
+    },
+  });
+  const result = validateBackupPayload(backup);
+  assert.equal(result.rows[0].milkType, 'goat');
+  assert.equal(result.rows[0].milkTypeLabel, 'बकरी');
+  assert.equal(result.rows[0].shiftLabel, 'रात्रि');
+  assert.equal(result.transactions[0].kind, 'feed_credit');
+  assert.equal(result.transactions[0].categoryLabel, 'खनिज मिश्रण');
+});
