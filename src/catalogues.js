@@ -39,6 +39,7 @@ function normalizeList(input, fallback) {
     if (!label || seen.has(value)) continue;
     seen.add(value);
     const entry = { value, label, active: item.active !== false };
+    if (typeof item.historicalLabel === 'string' && item.historicalLabel.trim()) entry.historicalLabel = item.historicalLabel.trim().slice(0, 60);
     if (fallback.some(option => Object.prototype.hasOwnProperty.call(option, 'effect'))) {
       const validEffects = ['received', 'remained', 'advance', 'expense'];
       const fallbackEffect = fallback.find(option => option.value === value)?.effect || 'received';
