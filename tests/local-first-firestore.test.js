@@ -52,7 +52,8 @@ test('routine startup and month changes use cache-only reads, not live server li
   assert.match(source, /getDocFromCache\(/);
   assert.match(source, /getDocsFromCache\(/);
   assert.doesNotMatch(source, /onSnapshot\(/);
-  assert.doesNotMatch(source.slice(source.indexOf('useEffect(()=>{\n  if(!user?.uid)return;'), source.indexOf('async function syncNow')), /getDocFromServer|getDocsFromServer/);
+  const startup = source.slice(source.indexOf('useEffect(()=>{\n  if(!user?.uid)return;'), source.indexOf('async function syncNow'));
+  assert.doesNotMatch(startup, /getDocFromServer|getDocsFromServer|waitForPendingWrites/);
 });
 
 test('explicit Sync Now refreshes the profile and selected-month records from server', async () => {
