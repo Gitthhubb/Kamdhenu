@@ -1,3 +1,4 @@
+import { normalizeCatalogues } from '../src/catalogues.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DEFAULT_SETTINGS, normalizeSettings } from '../src/app-settings.js';
@@ -44,6 +45,7 @@ test('normalises configurable profile identity, currency and editable rate prefe
     defaultMilkType: 'cow',
     defaultRate: '64.5',
     lockDefaultRate: false,
+    catalogues: normalizeCatalogues(),
   });
 });
 
