@@ -65,6 +65,7 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
  const [syncStatus,setSyncStatus]=useState('loading');
  const [syncBusy,setSyncBusy]=useState(false);
  const [profileReady,setProfileReady]=useState(false);
+ const [settingsReady,setSettingsReady]=useState(false);
  const [driveBusy,setDriveBusy]=useState(false);
  const [backupBusy,setBackupBusy]=useState(false);
  const money=n=>new Intl.NumberFormat('hi-IN',{style:'currency',currency:store.settings.currency||'INR',maximumFractionDigits:2}).format(Number(n)||0);
@@ -76,6 +77,7 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
   let active=true;
   setSyncStatus(navigator.onLine?'loading':'offline');
   setProfileReady(false);
+  setSettingsReady(false);
   setStore(current=>({...current,rows:[],transactions:[]}));
   const {startDate,endDateExclusive}=getMonthDateRange(month);
   const milkQuery=query(collection(db,'users',user.uid,'milk'),where('date','>=',startDate),where('date','<',endDateExclusive),orderBy('date','desc'));
@@ -99,6 +101,7 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
     };
     setStore(next);
     setSettingsDraft(next.settings);
+    setSettingsReady(Boolean(profileSnap));
     setForm(configuredMilkForm(next.settings,next.rates));
     setTxForm(configuredTransactionForm(next.settings));
     setProfileReady(true);
@@ -139,7 +142,7 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
    (cachedTx?.docs||[]).filter(d=>d.metadata.hasPendingWrites).forEach(d=>txById.set(d.id,{id:d.id,...d.data(),created_at:d.data().createdAt?.toDate?.()?.toISOString?.()||''}));
    const next={...DEFAULT_STATE,...profile,rows:[...milkById.values()],transactions:[...txById.values()],rates:{...DEFAULT_STATE.rates,...(profile.rates||{})},settings:normalizeSettings(profile.settings||{},profile.rates||{}),buyers:Array.isArray(profile.buyers)?profile.buyers:[]};
    setStore(next);setSettingsDraft(next.settings);setForm(configuredMilkForm(next.settings,next.rates));setTxForm(configuredTransactionForm(next.settings));
-   setProfileReady(true);setSyncStatus('synced');success('सर्वर से डेटा अपडेट हो गया।');
+   setProfileReady(true);setSettingsReady(true);setSyncStatus('synced');success('सर्वर से डेटा अपडेट हो गया।');
   }catch(err){report(err);setSyncStatus(navigator.onLine?'error':'offline')}
   finally{setSyncBusy(false)}
  }
@@ -150,7 +153,7 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
 
  async function saveAccountSettings(e){
   e.preventDefault();
-  if(!profileReady)return report('खाता सेटिंग्स अभी उपलब्ध नहीं हैं। समन्वय पूरा होने तक प्रतीक्षा करें।');
+  if(!settingsReady)return report('सेटिंग्स बदलने से पहले Sync Now चलाकर सर्वर प्रोफ़ाइल प्राप्त करें।');
   const settings=normalizeSettings(settingsDraft,store.rates);
   if(!settingsDraft.ledgerName.trim())return report('लेजर या व्यवसाय का नाम दर्ज करें।');
   if(settings.quickEntryEnabled&&(!settings.defaultMilkman.trim()||!settings.defaultRate.trim()||!Number.isFinite(Number(settings.defaultRate))||Number(settings.defaultRate)<=0||!settings.catalogues.milkTypes.some(item=>item.value===settings.defaultMilkType&&item.active))){
@@ -183,7 +186,9 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
  }
  function persist(next){
   try{
-   const write=setDoc(doc(db,'users',user.uid),{rates:next.rates,buyers:next.buyers,settings:next.settings,updatedAt:serverTimestamp()},{merge:true});
+   const profilePatch={rates:next.rates,buyers:next.buyers,updatedAt:serverTimestamp()};
+   if(settingsReady)profilePatch.settings=next.settings;
+   const write=setDoc(doc(db,'users',user.uid),profilePatch,{merge:true});
    write.catch(report);
    setStore(next);
    return true;
@@ -414,7 +419,7 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
   <div className="storage-notice">परीक्षण संस्करण · प्रविष्टियाँ आपके Firebase खाते (Google या अतिथि) के साथ Firestore में सिंक होती हैं। अतिथि डेटा को दूसरे डिवाइस पर सुरक्षित रखने के लिए Google खाते से जोड़ें। वास्तविक हिसाब Version 2.0 के स्थिर विमोचन के बाद दर्ज करें।</div>
   <section className="mode-strip">
    <div><b>लेजर प्रोफ़ाइल और सेटिंग्स</b><small>{store.settings.quickEntryEnabled?store.settings.quickEntryLabel+' · '+store.settings.defaultMilkman:'सामान्य प्रविष्टि · '+store.settings.currency}</small></div>
-   <button type="button" className="mode-settings" aria-expanded={settingsOpen} disabled={!profileReady} onClick={()=>setSettingsOpen(v=>!v)}>{settingsOpen?'बंद करें':'कॉन्फ़िगर करें'}</button>
+   <button type="button" className="mode-settings" aria-expanded={settingsOpen} disabled={!settingsReady} onClick={()=>setSettingsOpen(v=>!v)}>{settingsOpen?'बंद करें':'कॉन्फ़िगर करें'}</button>
   </section>
   {settingsOpen&&<form className="account-settings-panel" onSubmit={saveAccountSettings}>
    <b>लेजर और खाता सेटिंग्स</b>
@@ -439,7 +444,7 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
     <CatalogueEditor title="खर्च के मद" items={settingsDraft.catalogues.expenseCategories} onChange={items=>setSettingsDraft({...settingsDraft,catalogues:{...settingsDraft.catalogues,expenseCategories:items}})} onAdd={()=>addCatalogueOption('expenseCategories')}/>
    </div>
    <label>फुटर नोट (वैकल्पिक)<input className="full-text" maxLength="120" value={settingsDraft.footerNote} onChange={e=>setSettingsDraft({...settingsDraft,footerNote:e.target.value})} placeholder="शाखा, संस्था या संपर्क विवरण"/></label>
-   <button type="submit" disabled={!profileReady}>सेटिंग्स सुरक्षित करें</button>
+   <button type="submit" disabled={!settingsReady}>सेटिंग्स सुरक्षित करें</button>
   </form>}
   <section className="hero">
    <div className="hero-top"><span>मासिक सारांश</span><label className="hero-month"><input aria-label="माह चुनें" type="month" value={month} onChange={e=>changeMonth(e.target.value)}/></label></div>
