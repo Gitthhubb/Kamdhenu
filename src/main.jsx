@@ -20,7 +20,11 @@ const milkLabel=(k,catalogues)=>catalogueLabel(catalogues?.milkTypes,k,k==='cow'
 const shiftLabel=(k,catalogues)=>catalogueLabel(catalogues?.shifts,k,k==='morning'?'सुबह':k==='evening'?'शाम':'समय दर्ज नहीं');
 const DEFAULT_STATE={rows:[],transactions:[],rates:{cow_rate:0,buffalo_rate:0},buyers:[],settings:{...DEFAULT_SETTINGS}};
 const blankForm=(rates=null)=>({sale_date:today(),shift:'morning',buyer:'',milk_type:'cow',quantity:'',rate:rates?String(rates.cow_rate??0):'',remarks:''});
-const configuredMilkForm=(settings,rates)=>settings.quickEntryEnabled?{...blankForm(rates),buyer:settings.defaultMilkman,milk_type:settings.defaultMilkType,rate:String(settings.defaultRate||rates[settings.defaultMilkType+'_rate']||'')}:blankForm(rates);
+const configuredMilkForm=(settings,rates)=>{
+ const base={...blankForm(rates),shift:settings.catalogues.shifts.find(item=>item.active)?.value||'morning',milk_type:settings.catalogues.milkTypes.find(item=>item.active)?.value||'cow'};
+ return settings.quickEntryEnabled?{...base,buyer:settings.defaultMilkman,milk_type:settings.defaultMilkType,rate:String(settings.defaultRate||rates[settings.defaultMilkType+'_rate']||'')}:base;
+};
+const configuredTransactionForm=settings=>({...blankTransaction(),kind:settings.catalogues.transactionKinds.find(item=>item.active)?.value||'received',category:settings.catalogues.expenseCategories.find(item=>item.active)?.value||'others'});
 const blankTransaction=()=>({date:today(),kind:'received',amount:'',party:'',category:'paddy_stalk',remarks:''});
 const expenseCategories=[
  {value:'paddy_stalk',label:'धान का पुआल'},
@@ -102,6 +106,7 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
     setStore(next);
     setSettingsDraft(next.settings);
     setForm(configuredMilkForm(next.settings,next.rates));
+    setTxForm(configuredTransactionForm(next.settings));
     setProfileReady(true);
     setSyncStatus(navigator.onLine?'cached':'offline');
    }catch(err){if(active){report(err);setSyncStatus(navigator.onLine?'error':'offline');setProfileReady(true)}}
@@ -138,7 +143,7 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
    (cachedMilk?.docs||[]).filter(d=>d.metadata.hasPendingWrites).forEach(d=>milkById.set(d.id,{id:d.id,...d.data(),sale_date:d.data().date,buyer:d.data().milkman,milk_type:d.data().milkType,created_at:d.data().createdAt?.toDate?.()?.toISOString?.()||''}));
    (cachedTx?.docs||[]).filter(d=>d.metadata.hasPendingWrites).forEach(d=>txById.set(d.id,{id:d.id,...d.data(),created_at:d.data().createdAt?.toDate?.()?.toISOString?.()||''}));
    const next={...DEFAULT_STATE,...profile,rows:[...milkById.values()],transactions:[...txById.values()],rates:{...DEFAULT_STATE.rates,...(profile.rates||{})},settings:normalizeSettings(profile.settings||{},profile.rates||{}),buyers:Array.isArray(profile.buyers)?profile.buyers:[]};
-   setStore(next);setSettingsDraft(next.settings);setForm(configuredMilkForm(next.settings,next.rates));
+   setStore(next);setSettingsDraft(next.settings);setForm(configuredMilkForm(next.settings,next.rates));setTxForm(configuredTransactionForm(next.settings));
    setProfileReady(true);setSyncStatus('synced');success('सर्वर से डेटा अपडेट हो गया।');
   }catch(err){report(err);setSyncStatus(navigator.onLine?'error':'offline')}
   finally{setSyncBusy(false)}
@@ -355,7 +360,7 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
    const record={date:txForm.date,kind:txForm.kind,kindLabel:catalogueLabel(store.settings.catalogues.transactionKinds,txForm.kind),amount,party:txForm.party.trim(),category:txForm.kind==='expense'?txForm.category:'',categoryLabel:catalogueLabel(store.settings.catalogues.expenseCategories,txForm.category),remarks:txForm.remarks.trim(),createdAt:serverTimestamp()};
    const ref=await addDoc(collection(db,'users',user.uid,'transactions'),record);
    setStore(current=>({...current,transactions:[...current.transactions,{id:ref.id,...record,created_at:new Date().toISOString()}]}));
-   setTxForm(blankTransaction());success(navigator.onLine?'लेन-देन स्थानीय रूप से सुरक्षित; सर्वर से समन्वय जारी है।':'लेन-देन स्थानीय रूप से सुरक्षित; इंटरनेट उपलब्ध होने पर समन्वय होगा।');
+   setTxForm(configuredTransactionForm(store.settings));success(navigator.onLine?'लेन-देन स्थानीय रूप से सुरक्षित; सर्वर से समन्वय जारी है।':'लेन-देन स्थानीय रूप से सुरक्षित; इंटरनेट उपलब्ध होने पर समन्वय होगा।');
   }catch(err){report(err)}
  }
  function exportCsv(){
@@ -443,7 +448,7 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
   <section className="hero">
    <div className="hero-top"><span>मासिक सारांश</span><label className="hero-month"><input aria-label="माह चुनें" type="month" value={month} onChange={e=>changeMonth(e.target.value)}/></label></div>
    <div className="hero-metrics">
-    <div className="hero-milk"><small>दूध आज तक</small><strong>{number(milkToDate)}<i>लीटर</i></strong><span>गाय {number(qty(monthMilk.filter(x=>x.milk_type==='cow')))} L · भैंस {number(qty(monthMilk.filter(x=>x.milk_type==='buffalo')))} L</span></div>
+    <div className="hero-milk"><small>दूध आज तक</small><strong>{number(milkToDate)}<i>लीटर</i></strong><span>{store.settings.catalogues.milkTypes.filter(item=>item.active).map(item=>item.label+' '+number(qty(monthMilk.filter(x=>x.milk_type===item.value)))+' L').join(' · ')}</span></div>
     <div className="hero-net"><small>शुद्ध राशि</small><strong>{money(netAmount)}</strong><span>बिक्री + प्राप्ति − अग्रिम − खर्च</span></div>
    </div>
    <div className="hero-foot"><span>आज का दूध</span><b>{number(milkToday)} लीटर</b><span>आज की बिक्री</span><b>{money(total(todayMilk))}</b></div>
