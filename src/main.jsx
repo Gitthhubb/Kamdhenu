@@ -200,7 +200,8 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
  async function deleteMilk(id){
   if(!window.confirm('क्या इस दूध प्रविष्टि को स्थायी रूप से हटाना है?'))return;
   try{
-   const deletion=deleteDoc(doc(db,'users',user.uid,'milk',id));deletion.catch(report);
+   const previous=store.rows.find(row=>row.id===id);
+   const deletion=deleteDoc(doc(db,'users',user.uid,'milk',id));deletion.catch(err=>{if(previous)setStore(current=>({...current,rows:[...current.rows,previous]}));setSyncStatus('error');report(err)});
    setStore(current=>({...current,rows:current.rows.filter(row=>row.id!==id)}));
    success(navigator.onLine?'दूध प्रविष्टि हटाने का अनुरोध भेजा गया।':'प्रविष्टि स्थानीय रूप से हटाई गई; ऑनलाइन होने पर समन्वय होगा।');
   }catch(err){report(err)}
@@ -208,7 +209,8 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
  async function deleteTransaction(id){
   if(!window.confirm('क्या इस लेन-देन को स्थायी रूप से हटाना है?'))return;
   try{
-   const deletion=deleteDoc(doc(db,'users',user.uid,'transactions',id));deletion.catch(report);
+   const previous=store.transactions.find(row=>row.id===id);
+   const deletion=deleteDoc(doc(db,'users',user.uid,'transactions',id));deletion.catch(err=>{if(previous)setStore(current=>({...current,transactions:[...current.transactions,previous]}));setSyncStatus('error');report(err)});
    setStore(current=>({...current,transactions:current.transactions.filter(row=>row.id!==id)}));
    success(navigator.onLine?'लेन-देन हटाने का अनुरोध भेजा गया।':'लेन-देन स्थानीय रूप से हटाया गया; ऑनलाइन होने पर समन्वय होगा।');
   }catch(err){report(err)}
@@ -353,7 +355,7 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
   try{
    const record={date:form.sale_date,shift:form.shift||'morning',shiftLabel:shiftLabel(form.shift||'morning',store.settings.catalogues),milkman,milkType,milkTypeLabel:milkLabel(milkType,store.settings.catalogues),quantity,rate,amount:Math.round(quantity*rate*100)/100,remarks:form.remarks.trim(),createdAt:serverTimestamp()};
    const ref=doc(collection(db,'users',user.uid,'milk'));
-   const milkWrite=setDoc(ref,record);milkWrite.catch(report);
+   const milkWrite=setDoc(ref,record);milkWrite.catch(err=>{setStore(current=>({...current,rows:current.rows.filter(item=>item.id!==ref.id)}));setSyncStatus('error');report(err)});
    const row={id:ref.id,...record,sale_date:record.date,buyer:milkman,milk_type:milkType,created_at:new Date().toISOString()};
    const next={...store,rows:[...store.rows,row],buyers:[...new Set([...store.buyers,milkman])],rates:{...store.rates,[milkType+'_rate']:rate}};
    const profileSaved=await persist(next);
@@ -373,7 +375,7 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
   try{
    const record={date:txForm.date,kind:txForm.kind,kindLabel:catalogueLabel(store.settings.catalogues.transactionKinds,txForm.kind),kindEffect:transactionEffect,amount,party:txForm.party.trim(),category:transactionEffect==='expense'?txForm.category:'',categoryLabel:catalogueLabel(store.settings.catalogues.expenseCategories,txForm.category),remarks:txForm.remarks.trim(),createdAt:serverTimestamp()};
    const ref=doc(collection(db,'users',user.uid,'transactions'));
-   const transactionWrite=setDoc(ref,record);transactionWrite.catch(report);
+   const transactionWrite=setDoc(ref,record);transactionWrite.catch(err=>{setStore(current=>({...current,transactions:current.transactions.filter(item=>item.id!==ref.id)}));setSyncStatus('error');report(err)});
    setStore(current=>({...current,transactions:[...current.transactions,{id:ref.id,...record,created_at:new Date().toISOString()}]}));
    setTxForm(configuredTransactionForm(store.settings));success(navigator.onLine?'लेन-देन स्थानीय रूप से सुरक्षित; सर्वर से समन्वय जारी है।':'लेन-देन स्थानीय रूप से सुरक्षित; इंटरनेट उपलब्ध होने पर समन्वय होगा।');
   }catch(err){report(err)}
