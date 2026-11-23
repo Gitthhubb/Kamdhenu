@@ -1,3 +1,4 @@
+import { normalizeCatalogues } from '../src/catalogues.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { validateBackupPayload } from '../src/backup-validation.js';
@@ -65,6 +66,7 @@ test('normalises a valid backup while preserving source document IDs', () => {
       defaultMilkType: 'buffalo',
       defaultRate: '',
       lockDefaultRate: true,
+      catalogues: normalizeCatalogues(),
     },
   });
 });
@@ -124,6 +126,7 @@ test('migrates legacy one-person backups into a generic quick-entry profile', ()
     defaultMilkType: 'buffalo',
     defaultRate: '70',
     lockDefaultRate: true,
+    catalogues: normalizeCatalogues(),
   });
 });
 
