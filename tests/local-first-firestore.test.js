@@ -51,6 +51,7 @@ test('routine startup and month changes use cache-only reads, not live server li
   assert.match(source, /getMonthDateRange\(month\)/);
   assert.match(source, /getDocFromCache\(/);
   assert.match(source, /getDocsFromCache\(/);
+  assert.match(source, /syncVersionRef\.current!==cacheVersion/);
   assert.doesNotMatch(source, /onSnapshot\(/);
   const startup = source.slice(source.indexOf('useEffect(()=>{\n  if(!user?.uid)return;'), source.indexOf('async function syncNow'));
   assert.doesNotMatch(startup, /getDocFromServer|getDocsFromServer|waitForPendingWrites/);
@@ -65,6 +66,7 @@ test('explicit Sync Now refreshes the profile and selected-month records from se
   assert.match(sync, /hasPendingWrites/);
   assert.match(sync, /waitForPendingWrites/);
   assert.match(sync, /monthRef\.current!==syncMonth/);
+  assert.match(sync, /syncVersionRef\.current!==syncVersion/);
 });
 
 test('JSON and Drive backups fetch complete history rather than the selected month', async () => {
