@@ -15,8 +15,9 @@ import{DEFAULT_SETTINGS,normalizeSettings,SUPPORTED_CURRENCIES}from'./app-settin
 
 const today=()=>{const d=new Date();return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-')};
 const number=n=>new Intl.NumberFormat('hi-IN',{maximumFractionDigits:2}).format(Number(n)||0);
-const milkLabel=k=>k==='cow'?'गाय':'भैंस';
-const shiftLabel=k=>k==='evening'?'शाम':k==='morning'?'सुबह':'समय दर्ज नहीं';
+const catalogueLabel=(items,key,fallback='')=>items?.find(item=>item.value===key)?.label||fallback||key;
+const milkLabel=(k,catalogues)=>catalogueLabel(catalogues?.milkTypes,k,k==='cow'?'गाय':k==='buffalo'?'भैंस':k);
+const shiftLabel=(k,catalogues)=>catalogueLabel(catalogues?.shifts,k,k==='morning'?'सुबह':k==='evening'?'शाम':'समय दर्ज नहीं');
 const DEFAULT_STATE={rows:[],transactions:[],rates:{cow_rate:0,buffalo_rate:0},buyers:[],settings:{...DEFAULT_SETTINGS}};
 const blankForm=(rates=null)=>({sale_date:today(),shift:'morning',buyer:'',milk_type:'cow',quantity:'',rate:rates?String(rates.cow_rate??0):'',remarks:''});
 const configuredMilkForm=(settings,rates)=>settings.quickEntryEnabled?{...blankForm(rates),buyer:settings.defaultMilkman,milk_type:settings.defaultMilkType,rate:String(settings.defaultRate||rates[settings.defaultMilkType+'_rate']||'')}:blankForm(rates);
@@ -41,6 +42,15 @@ function changeLedgerTab(value,setTab){
 }
 function RadioChoices({value,onChange,options,name}){
  return <div className="radio-group" role="radiogroup">{options.map(o=><label className={'radio-choice '+(value===o.value?'chosen':'')} key={o.value}><input type="radio" name={name} value={o.value} checked={value===o.value} onChange={()=>onChange(o.value)}/><span>{o.label}</span></label>)}</div>;
+}
+function CatalogueEditor({title,items,onChange,onAdd}){
+ return <fieldset className="catalogue-editor"><legend>{title}</legend>
+  {items.map(item=><div className="catalogue-option" key={item.value}>
+   <input aria-label={title+' का नाम'} maxLength="60" value={item.label} onChange={e=>onChange(items.map(x=>x.value===item.value?{...x,label:e.target.value}:x))}/>
+   <label><input type="checkbox" checked={item.active} onChange={e=>onChange(items.map(x=>x.value===item.value?{...x,active:e.target.checked}:x))}/> सक्रिय</label>
+  </div>)}
+  <button type="button" className="secondary" onClick={onAdd}>विकल्प जोड़ें</button>
+ </fieldset>;
 }
 function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
  const initial=DEFAULT_STATE;
@@ -134,12 +144,16 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
   finally{setSyncBusy(false)}
  }
 
+ function addCatalogueOption(field){
+  setSettingsDraft(current=>({...current,catalogues:{...current.catalogues,[field]:[...current.catalogues[field],{value:'custom_'+Date.now().toString(36),label:'नया विकल्प',active:true}]}}));
+ }
+
  async function saveAccountSettings(e){
   e.preventDefault();
   if(!profileReady)return report('खाता सेटिंग्स अभी उपलब्ध नहीं हैं। समन्वय पूरा होने तक प्रतीक्षा करें।');
   const settings=normalizeSettings(settingsDraft,store.rates);
   if(!settingsDraft.ledgerName.trim())return report('लेजर या व्यवसाय का नाम दर्ज करें।');
-  if(settings.quickEntryEnabled&&(!settings.defaultMilkman.trim()||!settings.defaultRate.trim()||!Number.isFinite(Number(settings.defaultRate))||Number(settings.defaultRate)<=0)){
+  if(settings.quickEntryEnabled&&(!settings.defaultMilkman.trim()||!settings.defaultRate.trim()||!Number.isFinite(Number(settings.defaultRate))||Number(settings.defaultRate)<=0||!settings.catalogues.milkTypes.some(item=>item.value===settings.defaultMilkType&&item.active))){
    return report('त्वरित प्रविष्टि के लिए सप्लायर का नाम और शून्य से अधिक डिफ़ॉल्ट दर दर्ज करें।');
   }
   const next={...store,settings};
@@ -320,7 +334,7 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
   if(form.sale_date<periodStart||form.sale_date>periodEnd)return report('दिनांक चुने हुए पृष्ठ की अवधि में होनी चाहिए।');
   if(!form.sale_date||!milkman||!String(form.quantity).trim()||!String(form.rate).trim()||!Number.isFinite(quantity)||quantity<=0||!Number.isFinite(rate)||rate<0)return report('दिनांक, दूधवाले का नाम, शून्य से अधिक मात्रा और वैध दर दर्ज करें।');
   try{
-   const record={date:form.sale_date,shift:form.shift||'morning',milkman,milkType,quantity,rate,amount:Math.round(quantity*rate*100)/100,remarks:form.remarks.trim(),createdAt:serverTimestamp()};
+   const record={date:form.sale_date,shift:form.shift||'morning',shiftLabel:shiftLabel(form.shift||'morning',store.settings.catalogues),milkman,milkType,milkTypeLabel:milkLabel(milkType,store.settings.catalogues),quantity,rate,amount:Math.round(quantity*rate*100)/100,remarks:form.remarks.trim(),createdAt:serverTimestamp()};
    const ref=await addDoc(collection(db,'users',user.uid,'milk'),record);
    const row={id:ref.id,...record,sale_date:record.date,buyer:milkman,milk_type:milkType,created_at:new Date().toISOString()};
    const next={...store,rows:[...store.rows,row],buyers:[...new Set([...store.buyers,milkman])],rates:{...store.rates,[milkType+'_rate']:rate}};
@@ -338,7 +352,7 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
   if(!txForm.date||!String(txForm.amount).trim()||!Number.isFinite(amount)||amount<=0)return report('वैध दिनांक और शून्य से अधिक राशि दर्ज करें।');
   if(txForm.kind==='expense'&&!txForm.category)return report('खर्च का मद चुनें।');
   try{
-   const record={date:txForm.date,kind:txForm.kind,amount,party:txForm.party.trim(),category:txForm.kind==='expense'?txForm.category:'',remarks:txForm.remarks.trim(),createdAt:serverTimestamp()};
+   const record={date:txForm.date,kind:txForm.kind,kindLabel:catalogueLabel(store.settings.catalogues.transactionKinds,txForm.kind),amount,party:txForm.party.trim(),category:txForm.kind==='expense'?txForm.category:'',categoryLabel:catalogueLabel(store.settings.catalogues.expenseCategories,txForm.category),remarks:txForm.remarks.trim(),createdAt:serverTimestamp()};
    const ref=await addDoc(collection(db,'users',user.uid,'transactions'),record);
    setStore(current=>({...current,transactions:[...current.transactions,{id:ref.id,...record,created_at:new Date().toISOString()}]}));
    setTxForm(blankTransaction());success(navigator.onLine?'लेन-देन स्थानीय रूप से सुरक्षित; सर्वर से समन्वय जारी है।':'लेन-देन स्थानीय रूप से सुरक्षित; इंटरनेट उपलब्ध होने पर समन्वय होगा।');
@@ -346,7 +360,7 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
  }
  function exportCsv(){
   const data=store.rows.filter(x=>x.sale_date.startsWith(month)).sort(sortNewest);
-  const lines=[['दिनांक','दूधवाला','समय','दूध का प्रकार','मात्रा (लीटर)','दर','राशि','टिप्पणी'],...data.map(x=>[x.sale_date,x.buyer,shiftLabel(x.shift),milkLabel(x.milk_type),x.quantity,x.rate,x.amount,x.remarks||''])];
+  const lines=[['दिनांक','दूधवाला','समय','दूध का प्रकार','मात्रा (लीटर)','दर','राशि','टिप्पणी'],...data.map(x=>[x.sale_date,x.buyer,x.shiftLabel||shiftLabel(x.shift,store.settings.catalogues),x.milkTypeLabel||milkLabel(x.milk_type,store.settings.catalogues),x.quantity,x.rate,x.amount,x.remarks||''])];
   const csv=lines.map(row=>row.map(x=>{let v=String(x??'');if(/^[\\t\\r ]*[=+@-]/.test(v))v="'"+v;return '"'+v.replaceAll('"','""')+'"'}).join(',')).join('\r\n');
   const url=URL.createObjectURL(new Blob(['\\ufeff'+csv],{type:'text/csv;charset=utf-8'})),a=document.createElement('a');a.href=url;a.download='kamdhenu-doodh-'+month+'.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
  }
@@ -410,11 +424,19 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
    {settingsDraft.quickEntryEnabled&&<>
     <label>प्रोफ़ाइल का नाम<input className="full-text" maxLength="50" value={settingsDraft.quickEntryLabel} onChange={e=>setSettingsDraft({...settingsDraft,quickEntryLabel:e.target.value})} placeholder="उदाहरण: सुबह की सप्लाई"/></label>
     <label>निश्चित सप्लायर / दूधवाला<input className="full-text" maxLength="80" value={settingsDraft.defaultMilkman} onChange={e=>setSettingsDraft({...settingsDraft,defaultMilkman:e.target.value})} placeholder="नाम दर्ज करें" required/></label>
-    <label>डिफ़ॉल्ट दूध का प्रकार<RadioChoices name="quick-profile-milk-type" value={settingsDraft.defaultMilkType} onChange={v=>setSettingsDraft({...settingsDraft,defaultMilkType:v})} options={[{value:'cow',label:'गाय'},{value:'buffalo',label:'भैंस'}]}/></label>
+    <label>डिफ़ॉल्ट दूध का प्रकार<RadioChoices name="quick-profile-milk-type" value={settingsDraft.defaultMilkType} onChange={v=>setSettingsDraft({...settingsDraft,defaultMilkType:v})} options={store.settings.catalogues.milkTypes.filter(item=>item.active)}/></label>
     <label>डिफ़ॉल्ट दर ({currencySymbol}/लीटर)<input className="number-input" type="number" min=".01" step=".01" inputMode="decimal" value={settingsDraft.defaultRate} onChange={e=>setSettingsDraft({...settingsDraft,defaultRate:e.target.value})} placeholder="उदाहरण: 70" required/></label>
     <label className="setting-check"><input type="checkbox" checked={settingsDraft.lockDefaultRate} onChange={e=>setSettingsDraft({...settingsDraft,lockDefaultRate:e.target.checked})}/> प्रविष्टि में डिफ़ॉल्ट दर स्थिर रखें</label>
     <small>सक्षम होने पर सप्लायर और दूध का प्रकार स्वतः भरे जाएँगे। दर स्थिर न रखने पर प्रत्येक प्रविष्टि में उसे बदला जा सकेगा।</small>
    </>}
+   <div className="catalogue-settings">
+    <b>पूर्वनिर्धारित विकल्प</b>
+    <small>नाम बदले या विकल्प निष्क्रिय करें। पुराने लेन-देन और दूध प्रविष्टियाँ यथावत रहेंगी।</small>
+    <CatalogueEditor title="दूध के प्रकार" items={settingsDraft.catalogues.milkTypes} onChange={items=>setSettingsDraft({...settingsDraft,catalogues:{...settingsDraft.catalogues,milkTypes:items}})} onAdd={()=>addCatalogueOption('milkTypes')}/>
+    <CatalogueEditor title="दूध देने का समय" items={settingsDraft.catalogues.shifts} onChange={items=>setSettingsDraft({...settingsDraft,catalogues:{...settingsDraft.catalogues,shifts:items}})} onAdd={()=>addCatalogueOption('shifts')}/>
+    <CatalogueEditor title="लेन-देन के प्रकार" items={settingsDraft.catalogues.transactionKinds} onChange={items=>setSettingsDraft({...settingsDraft,catalogues:{...settingsDraft.catalogues,transactionKinds:items}})} onAdd={()=>addCatalogueOption('transactionKinds')}/>
+    <CatalogueEditor title="खर्च के मद" items={settingsDraft.catalogues.expenseCategories} onChange={items=>setSettingsDraft({...settingsDraft,catalogues:{...settingsDraft.catalogues,expenseCategories:items}})} onAdd={()=>addCatalogueOption('expenseCategories')}/>
+   </div>
    <label>फुटर नोट (वैकल्पिक)<input className="full-text" maxLength="120" value={settingsDraft.footerNote} onChange={e=>setSettingsDraft({...settingsDraft,footerNote:e.target.value})} placeholder="शाखा, संस्था या संपर्क विवरण"/></label>
    <button type="submit" disabled={!profileReady}>सेटिंग्स सुरक्षित करें</button>
   </form>}
@@ -451,12 +473,12 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
      <label>दूधवाला (Milkman)<input className="text-input full-text" value={store.settings.quickEntryEnabled?store.settings.defaultMilkman:form.buyer} onChange={e=>setForm({...form,buyer:e.target.value})} placeholder="नाम लिखें" readOnly={store.settings.quickEntryEnabled} required/></label>
      <div className="field-pair">
       <label>दिनांक<input className="date-input" type="date" value={form.sale_date} onChange={e=>setForm({...form,sale_date:e.target.value})} required/></label>
-      <label>समय<RadioChoices name="milk-shift" value={form.shift} onChange={v=>setForm({...form,shift:v})} options={[{value:'morning',label:'सुबह'},{value:'evening',label:'शाम'}]}/></label>
+      <label>समय<RadioChoices name="milk-shift" value={form.shift} onChange={v=>setForm({...form,shift:v})} options={store.settings.catalogues.shifts.filter(item=>item.active)}/></label>
      </div>
      <div className="field-triple">
       <label>मात्रा (लीटर)<input className="number-input" type="number" min=".01" step=".01" inputMode="decimal" placeholder="0" value={form.quantity} onChange={e=>setForm({...form,quantity:e.target.value})} required/></label>
       <label>दर ({currencySymbol})<input className="number-input" type="number" min="0" step=".01" inputMode="decimal" placeholder="0" value={form.rate} onChange={e=>setForm({...form,rate:e.target.value})} readOnly={store.settings.quickEntryEnabled&&store.settings.lockDefaultRate} required/></label>
-      <label>प्रकार{store.settings.quickEntryEnabled?<span className="fixed-value">{milkLabel(store.settings.defaultMilkType)} · प्रोफ़ाइल</span>:<RadioChoices name="milk-type" value={form.milk_type} onChange={v=>setForm({...form,milk_type:v,rate:String(store.rates[v+'_rate']??0)})} options={[{value:'cow',label:'गाय'},{value:'buffalo',label:'भैंस'}]}/>}</label>
+      <label>प्रकार{store.settings.quickEntryEnabled?<span className="fixed-value">{milkLabel(store.settings.defaultMilkType,store.settings.catalogues)} · प्रोफ़ाइल</span>:<RadioChoices name="milk-type" value={form.milk_type} onChange={v=>setForm({...form,milk_type:v,rate:String(store.rates[v+'_rate']??0)})} options={[{value:'cow',label:'गाय'},{value:'buffalo',label:'भैंस'}]}/>}</label>
      </div>
      <label>टिप्पणी<textarea className="comment-input" rows="2" value={form.remarks} onChange={e=>setForm({...form,remarks:e.target.value})} placeholder="वैकल्पिक टिप्पणी"/></label>
      <b className="amount-preview">कुल राशि: {money(Number(form.quantity)*Number(form.rate))}</b>
@@ -465,7 +487,7 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
     </form>
     <div className="list-heading"><h2>इस अवधि की दूध प्रविष्टियाँ</h2><button className="secondary small-action" onClick={exportCsv}>मासिक CSV</button></div>
     <div className="record-list">{periodMilk.map(row=><article className="record" key={row.id}>
-     <div><b>{row.buyer}</b><small>{row.sale_date} · {shiftLabel(row.shift)} · {milkLabel(row.milk_type)} · {number(row.quantity)} लीटर × {money(row.rate)}</small>{row.remarks&&<small>{row.remarks}</small>}</div>
+     <div><b>{row.buyer}</b><small>{row.sale_date} · {{row.shiftLabel||shiftLabel(row.shift,store.settings.catalogues)} · {row.milkTypeLabel||milkLabel(row.milk_type,store.settings.catalogues)}} · {number(row.quantity)} लीटर × {money(row.rate)}</small>{row.remarks&&<small>{row.remarks}</small>}</div>
      <strong>{money(row.amount)}</strong><div className="record-actions"><button type="button" className="delete-record" onClick={()=>deleteMilk(row.id)}>हटाएँ</button></div>
     </article>)}{!periodMilk.length&&<p className="empty">इस अवधि में कोई दूध प्रविष्टि नहीं है।</p>}</div>
    </>}
@@ -479,10 +501,10 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
     </section>
     <form className="entry-form" onSubmit={saveTransaction}>
      <label>दिनांक<input className="date-input" type="date" value={txForm.date} onChange={e=>setTxForm({...txForm,date:e.target.value})} required/></label>
-     <label>लेन-देन का प्रकार<RadioChoices name="transaction-kind" value={txForm.kind} onChange={v=>setTxForm({...txForm,kind:v})} options={[{value:'received',label:'प्राप्त'},{value:'remained',label:'बाकी'},{value:'advance',label:'अग्रिम'},{value:'expense',label:'खर्च'}]}/></label>
+     <label>लेन-देन का प्रकार<RadioChoices name="transaction-kind" value={txForm.kind} onChange={v=>setTxForm({...txForm,kind:v})} options={store.settings.catalogues.transactionKinds.filter(item=>item.active)}/></label>
      <label>राशि ({currencySymbol})<input className="number-input" type="number" min=".01" step=".01" inputMode="decimal" placeholder="0" value={txForm.amount} onChange={e=>setTxForm({...txForm,amount:e.target.value})} required/></label>
      <label>किससे / किसे (To Whom)<input className="text-input full-text" value={txForm.party} onChange={e=>setTxForm({...txForm,party:e.target.value})} placeholder="व्यक्ति या पार्टी का नाम"/></label>
-     {txForm.kind==='expense'&&<label>खर्च का मद<RadioChoices name="expense-category" value={txForm.category} onChange={v=>setTxForm({...txForm,category:v})} options={expenseCategories}/></label>}
+     {txForm.kind==='expense'&&<label>खर्च का मद<RadioChoices name="expense-category" value={txForm.category} onChange={v=>setTxForm({...txForm,category:v})} options={store.settings.catalogues.expenseCategories.filter(item=>item.active)}/></label>}
      <label>टिप्पणी<textarea className="comment-input" rows="2" value={txForm.remarks} onChange={e=>setTxForm({...txForm,remarks:e.target.value})} placeholder="वैकल्पिक टिप्पणी"/></label>
      <p className="append-note">हर लेन-देन नई प्रविष्टि है। इसे बदला नहीं जा सकता; आवश्यकता होने पर हटाया जा सकता है।</p>
      <div className="form-actions"><button disabled={!profileReady}>नया लेन-देन सुरक्षित करें</button></div>
