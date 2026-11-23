@@ -62,6 +62,8 @@ test('explicit Sync Now refreshes the profile and selected-month records from se
   assert.match(sync, /getDocFromServer\(/);
   assert.equal((sync.match(/getDocsFromServer\(/g) || []).length, 2);
   assert.match(sync, /hasPendingWrites/);
+  assert.match(sync, /waitForPendingWrites/);
+  assert.match(sync, /monthRef\.current!==syncMonth/);
 });
 
 test('JSON and Drive backups fetch complete history rather than the selected month', async () => {
