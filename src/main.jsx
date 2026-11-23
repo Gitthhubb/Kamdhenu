@@ -424,7 +424,7 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
    {settingsDraft.quickEntryEnabled&&<>
     <label>प्रोफ़ाइल का नाम<input className="full-text" maxLength="50" value={settingsDraft.quickEntryLabel} onChange={e=>setSettingsDraft({...settingsDraft,quickEntryLabel:e.target.value})} placeholder="उदाहरण: सुबह की सप्लाई"/></label>
     <label>निश्चित सप्लायर / दूधवाला<input className="full-text" maxLength="80" value={settingsDraft.defaultMilkman} onChange={e=>setSettingsDraft({...settingsDraft,defaultMilkman:e.target.value})} placeholder="नाम दर्ज करें" required/></label>
-    <label>डिफ़ॉल्ट दूध का प्रकार<RadioChoices name="quick-profile-milk-type" value={settingsDraft.defaultMilkType} onChange={v=>setSettingsDraft({...settingsDraft,defaultMilkType:v})} options={store.settings.catalogues.milkTypes.filter(item=>item.active)}/></label>
+    <label>डिफ़ॉल्ट दूध का प्रकार<RadioChoices name="quick-profile-milk-type" value={settingsDraft.defaultMilkType} onChange={v=>setSettingsDraft({...settingsDraft,defaultMilkType:v})} options={settingsDraft.catalogues.milkTypes.filter(item=>item.active)}/></label>
     <label>डिफ़ॉल्ट दर ({currencySymbol}/लीटर)<input className="number-input" type="number" min=".01" step=".01" inputMode="decimal" value={settingsDraft.defaultRate} onChange={e=>setSettingsDraft({...settingsDraft,defaultRate:e.target.value})} placeholder="उदाहरण: 70" required/></label>
     <label className="setting-check"><input type="checkbox" checked={settingsDraft.lockDefaultRate} onChange={e=>setSettingsDraft({...settingsDraft,lockDefaultRate:e.target.checked})}/> प्रविष्टि में डिफ़ॉल्ट दर स्थिर रखें</label>
     <small>सक्षम होने पर सप्लायर और दूध का प्रकार स्वतः भरे जाएँगे। दर स्थिर न रखने पर प्रत्येक प्रविष्टि में उसे बदला जा सकेगा।</small>
@@ -478,7 +478,7 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
      <div className="field-triple">
       <label>मात्रा (लीटर)<input className="number-input" type="number" min=".01" step=".01" inputMode="decimal" placeholder="0" value={form.quantity} onChange={e=>setForm({...form,quantity:e.target.value})} required/></label>
       <label>दर ({currencySymbol})<input className="number-input" type="number" min="0" step=".01" inputMode="decimal" placeholder="0" value={form.rate} onChange={e=>setForm({...form,rate:e.target.value})} readOnly={store.settings.quickEntryEnabled&&store.settings.lockDefaultRate} required/></label>
-      <label>प्रकार{store.settings.quickEntryEnabled?<span className="fixed-value">{milkLabel(store.settings.defaultMilkType,store.settings.catalogues)} · प्रोफ़ाइल</span>:<RadioChoices name="milk-type" value={form.milk_type} onChange={v=>setForm({...form,milk_type:v,rate:String(store.rates[v+'_rate']??0)})} options={[{value:'cow',label:'गाय'},{value:'buffalo',label:'भैंस'}]}/>}</label>
+      <label>प्रकार{store.settings.quickEntryEnabled?<span className="fixed-value">{milkLabel(store.settings.defaultMilkType,store.settings.catalogues)} · प्रोफ़ाइल</span>:<RadioChoices name="milk-type" value={form.milk_type} onChange={v=>setForm({...form,milk_type:v,rate:String(store.rates[v+'_rate']??0)})} options={store.settings.catalogues.milkTypes.filter(item=>item.active)}/>}</label>
      </div>
      <label>टिप्पणी<textarea className="comment-input" rows="2" value={form.remarks} onChange={e=>setForm({...form,remarks:e.target.value})} placeholder="वैकल्पिक टिप्पणी"/></label>
      <b className="amount-preview">कुल राशि: {money(Number(form.quantity)*Number(form.rate))}</b>
@@ -487,7 +487,7 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
     </form>
     <div className="list-heading"><h2>इस अवधि की दूध प्रविष्टियाँ</h2><button className="secondary small-action" onClick={exportCsv}>मासिक CSV</button></div>
     <div className="record-list">{periodMilk.map(row=><article className="record" key={row.id}>
-     <div><b>{row.buyer}</b><small>{row.sale_date} · {{row.shiftLabel||shiftLabel(row.shift,store.settings.catalogues)} · {row.milkTypeLabel||milkLabel(row.milk_type,store.settings.catalogues)}} · {number(row.quantity)} लीटर × {money(row.rate)}</small>{row.remarks&&<small>{row.remarks}</small>}</div>
+     <div><b>{row.buyer}</b><small>{row.sale_date} · {row.shiftLabel||shiftLabel(row.shift,store.settings.catalogues)} · {row.milkTypeLabel||milkLabel(row.milk_type,store.settings.catalogues)} · {number(row.quantity)} लीटर × {money(row.rate)}</small>{row.remarks&&<small>{row.remarks}</small>}</div>
      <strong>{money(row.amount)}</strong><div className="record-actions"><button type="button" className="delete-record" onClick={()=>deleteMilk(row.id)}>हटाएँ</button></div>
     </article>)}{!periodMilk.length&&<p className="empty">इस अवधि में कोई दूध प्रविष्टि नहीं है।</p>}</div>
    </>}
