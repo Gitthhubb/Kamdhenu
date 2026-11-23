@@ -42,7 +42,7 @@ test('configures Firestore with persistent multi-tab IndexedDB cache', async () 
 test('renders the application shell without waiting for Firestore readiness', async () => {
   const source = await read('../src/main.jsx');
   assert.doesNotMatch(source, /if\s*\(!cloudReady\)\s*return/);
-  assert.match(source, /fromCache/);
+  assert.match(source, /getDocFromCache/);
   assert.match(source, /sync-status/);
 });
 
