@@ -81,6 +81,7 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
   if(!user?.uid)return;
   let active=true;
   const cacheVersion=syncVersionRef.current;
+  pendingWritesRef.current=0;
   setSyncStatus(navigator.onLine?'loading':'offline');
   setProfileReady(false);
   setSettingsReady(false);
@@ -150,7 +151,7 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
    (cachedTx?.docs||[]).filter(d=>d.metadata.hasPendingWrites).forEach(d=>txById.set(d.id,{id:d.id,...d.data(),created_at:d.data().createdAt?.toDate?.()?.toISOString?.()||''}));
    const next={...DEFAULT_STATE,...profile,rows:[...milkById.values()],transactions:[...txById.values()],rates:{...DEFAULT_STATE.rates,...(profile.rates||{})},settings:normalizeSettings(profile.settings||{},profile.rates||{}),buyers:Array.isArray(profile.buyers)?profile.buyers:[]};
    setStore(next);setSettingsDraft(next.settings);setForm(configuredMilkForm(next.settings,next.rates));setTxForm(configuredTransactionForm(next.settings));
-   setProfileReady(true);setSettingsReady(true);setSyncStatus('synced');success('सर्वर से डेटा अपडेट हो गया।');
+   setProfileReady(true);setSettingsReady(true);setSyncStatus(pendingWritesRef.current?'pending':'synced');success('सर्वर से डेटा अपडेट हो गया।');
   }catch(err){report(err);setSyncStatus(navigator.onLine?'error':'offline')}
   finally{setSyncBusy(false)}
  }
@@ -179,10 +180,13 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
  function trackWrite(write,onFailure=report){
   pendingWritesRef.current+=1;
   setSyncStatus('pending');
+  const writeUid=user.uid;
   write.then(()=>{
+   if(auth.currentUser?.uid!==writeUid)return;
    pendingWritesRef.current=Math.max(0,pendingWritesRef.current-1);
    if(pendingWritesRef.current===0)setSyncStatus(navigator.onLine?'synced':'offline');
   }).catch(err=>{
+   if(auth.currentUser?.uid!==writeUid)return;
    pendingWritesRef.current=Math.max(0,pendingWritesRef.current-1);
    setSyncStatus('error');
    onFailure(err);
