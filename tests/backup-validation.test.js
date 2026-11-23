@@ -53,7 +53,7 @@ test('normalises a valid backup while preserving source document IDs', () => {
       category: 'cattle_feed',
       remarks: '',
     }],
-    rates: { cow_rate: 60, buffalo_rate: 70, goat_rate: 80 },
+    rates: { cow_rate: 60, buffalo_rate: 70 },
     buyers: ['राम'],
     settings: {
       ledgerName: 'कामधेनु',
@@ -168,6 +168,7 @@ test('restores custom catalogue values and preserves historical display labels',
       id: 'tx-custom', date: '2026-11-12', kind: 'feed_credit', kindLabel: 'चारा उधार', kindEffect: 'expense',
       amount: 100, party: 'दुकान', category: 'mineral_mix', categoryLabel: 'खनिज मिश्रण', remarks: '',
     }],
+    rates: { cow_rate: 60, buffalo_rate: 70, goat_rate: 80 },
     settings: {
       defaultMilkType: 'goat',
       catalogues: {
