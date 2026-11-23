@@ -1,3 +1,4 @@
+import { normalizeCatalogues } from './catalogues.js';
 export const SUPPORTED_CURRENCIES = Object.freeze(['INR', 'USD', 'GBP', 'EUR']);
 
 export const DEFAULT_SETTINGS = Object.freeze({
@@ -11,6 +12,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
   defaultMilkType: 'buffalo',
   defaultRate: '',
   lockDefaultRate: true,
+  catalogues: normalizeCatalogues(),
 });
 
 const isObject = value => value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -59,5 +61,6 @@ export function normalizeSettings(value, rates = {}) {
     lockDefaultRate: typeof source.lockDefaultRate === 'boolean'
       ? source.lockDefaultRate
       : DEFAULT_SETTINGS.lockDefaultRate,
+    catalogues: normalizeCatalogues(source.catalogues),
   };
 }
