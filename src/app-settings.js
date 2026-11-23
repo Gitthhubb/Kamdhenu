@@ -34,7 +34,7 @@ export function normalizeSettings(value, rates = {}) {
   const legacyPersonalMode = source.personalMode === true;
   const catalogues = normalizeCatalogues(source.catalogues);
   const requestedMilkType = typeof source.defaultMilkType === 'string' ? source.defaultMilkType : '';
-  const defaultMilkType = catalogues.milkTypes.some(item => item.value === requestedMilkType)
+  const defaultMilkType = catalogues.milkTypes.some(item => item.value === requestedMilkType && item.active)
     ? requestedMilkType
     : (catalogues.milkTypes.find(item => item.value === 'buffalo' && item.active)?.value
       || catalogues.milkTypes.find(item => item.active)?.value
