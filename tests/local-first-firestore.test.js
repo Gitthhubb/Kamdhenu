@@ -85,5 +85,7 @@ test('restore deduplication checks complete server-side collections', async () =
 test('cache miss does not gate account UI indefinitely', async () => {
   const source = await read('../src/main.jsx');
   assert.match(source, /setProfileReady\(true\)/);
+  assert.match(source, /setSettingsReady\(Boolean\(profileSnap\)\)/);
+  assert.match(source, /if\(settingsReady\)profilePatch\.settings=next\.settings/);
   assert.ok((source.match(/disabled=\{!profileReady\}/g) || []).length >= 3);
 });
