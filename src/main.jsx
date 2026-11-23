@@ -70,6 +70,7 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
  const [syncBusy,setSyncBusy]=useState(false);
  const pendingWritesRef=useRef(0);
  const pendingUidRef=useRef(user?.uid);
+ const accountUidRef=useRef(user?.uid);
  const [profileReady,setProfileReady]=useState(false);
  const [settingsReady,setSettingsReady]=useState(false);
  const [driveBusy,setDriveBusy]=useState(false);
@@ -82,11 +83,13 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
   if(!user?.uid)return;
   let active=true;
   const cacheVersion=syncVersionRef.current;
-  if(pendingUidRef.current!==user.uid){pendingWritesRef.current=0;pendingUidRef.current=user.uid}
+  const accountChanged=accountUidRef.current!==user.uid;
+  if(accountChanged){accountUidRef.current=user.uid;pendingWritesRef.current=0;pendingUidRef.current=user.uid;setStore(DEFAULT_STATE);setSettingsDraft({...DEFAULT_SETTINGS});setForm(blankForm(DEFAULT_STATE.rates));setTxForm(blankTransaction());setSettingsOpen(false)}
+  else if(pendingUidRef.current!==user.uid){pendingWritesRef.current=0;pendingUidRef.current=user.uid}
   setSyncStatus(navigator.onLine?'loading':'offline');
   setProfileReady(false);
   setSettingsReady(false);
-  setStore(current=>({...current,rows:[],transactions:[]}));
+  if(!accountChanged)setStore(current=>({...current,rows:[],transactions:[]}));
   const {startDate,endDateExclusive}=getMonthDateRange(month);
   const milkQuery=query(collection(db,'users',user.uid,'milk'),where('date','>=',startDate),where('date','<',endDateExclusive),orderBy('date','desc'));
   const transactionQuery=query(collection(db,'users',user.uid,'transactions'),where('date','>=',startDate),where('date','<',endDateExclusive),orderBy('date','desc'));
