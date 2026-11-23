@@ -56,6 +56,7 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
  const [tab,setTab]=useState(()=>new URLSearchParams(window.location.search).get('tab')==='transactions'?'Transactions':'Milk');
  const [month,setMonth]=useState(today().slice(0,7));
  const monthRef=useRef(month);
+ const syncVersionRef=useRef(0);
  useEffect(()=>{monthRef.current=month},[month]);
  const [periodPage,setPeriodPage]=useState(Math.min(3,Math.ceil(Number(today().slice(8,10))/10)));
  const [error,setError]=useState('');
@@ -77,6 +78,7 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
  useEffect(()=>{
   if(!user?.uid)return;
   let active=true;
+  const cacheVersion=syncVersionRef.current;
   setSyncStatus(navigator.onLine?'loading':'offline');
   setProfileReady(false);
   setSettingsReady(false);
@@ -91,7 +93,7 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
      getDocsFromCache(milkQuery).catch(()=>null),
      getDocsFromCache(transactionQuery).catch(()=>null)
     ]);
-    if(!active)return;
+    if(!active||syncVersionRef.current!==cacheVersion)return;
     const profile=profileSnap?.exists()?profileSnap.data():{};
     const next={...DEFAULT_STATE,...profile,
      rows:(milkSnap?.docs||[]).map(d=>({id:d.id,...d.data(),sale_date:d.data().date,buyer:d.data().milkman,milk_type:d.data().milkType,created_at:d.data().createdAt?.toDate?.()?.toISOString?.()||''})),
@@ -125,6 +127,7 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
   if(syncBusy)return;
   if(!navigator.onLine){setSyncStatus('offline');return}
   const syncMonth=month;
+  const syncVersion=++syncVersionRef.current;
   setSyncBusy(true);setSyncStatus('syncing');
   try{
    const {startDate,endDateExclusive}=getMonthDateRange(syncMonth);
@@ -136,7 +139,7 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
     getDocsFromServer(milkQuery),
     getDocsFromServer(transactionQuery)
    ]);
-   if(!auth.currentUser||auth.currentUser.uid!==user.uid||monthRef.current!==syncMonth)return;
+   if(!auth.currentUser||auth.currentUser.uid!==user.uid||monthRef.current!==syncMonth||syncVersionRef.current!==syncVersion)return;
    const profile=profileSnap.exists()?profileSnap.data():{};
    const [cachedMilk,cachedTx]=await Promise.all([getDocsFromCache(milkQuery).catch(()=>null),getDocsFromCache(transactionQuery).catch(()=>null)]);
    const milkById=new Map(milkSnap.docs.map(d=>[d.id,{id:d.id,...d.data(),sale_date:d.data().date,buyer:d.data().milkman,milk_type:d.data().milkType,created_at:d.data().createdAt?.toDate?.()?.toISOString?.()||''}]));
