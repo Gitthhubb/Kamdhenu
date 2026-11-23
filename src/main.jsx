@@ -39,10 +39,11 @@ function changeLedgerTab(value,setTab){
 function RadioChoices({value,onChange,options,name}){
  return <div className="radio-group" role="radiogroup">{options.map(o=><label className={'radio-choice '+(value===o.value?'chosen':'')} key={o.value}><input type="radio" name={name} value={o.value} checked={value===o.value} onChange={()=>onChange(o.value)}/><span>{o.label}</span></label>)}</div>;
 }
-function CatalogueEditor({title,items,onChange,onAdd}){
+function CatalogueEditor({title,items,onChange,onAdd,showEffects=false}){
  return <fieldset className="catalogue-editor"><legend>{title}</legend>
   {items.map(item=><div className="catalogue-option" key={item.value}>
    <input aria-label={title+' का नाम'} maxLength="60" value={item.label} onChange={e=>onChange(items.map(x=>x.value===item.value?{...x,label:e.target.value}:x))}/>
+   {showEffects&&<select aria-label={title+' का लेखा प्रभाव'} value={item.effect||'received'} onChange={e=>onChange(items.map(x=>x.value===item.value?{...x,effect:e.target.value}:x))}><option value="received">जमा</option><option value="remained">बाकी</option><option value="advance">अग्रिम</option><option value="expense">खर्च</option></select>}
    <label><input type="checkbox" checked={item.active} disabled={item.active&&items.filter(x=>x.active).length===1} onChange={e=>onChange(items.map(x=>x.value===item.value?{...x,active:e.target.checked}:x))}/> सक्रिय</label>
   </div>)}
   <button type="button" className="secondary" onClick={onAdd}>विकल्प जोड़ें</button>
@@ -148,7 +149,7 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
  }
 
  function addCatalogueOption(field){
-  setSettingsDraft(current=>({...current,catalogues:{...current.catalogues,[field]:[...current.catalogues[field],{value:'custom_'+Date.now().toString(36),label:'नया विकल्प',active:true}]}}));
+  setSettingsDraft(current=>({...current,catalogues:{...current.catalogues,[field]:[...current.catalogues[field],{value:'custom_'+Date.now().toString(36),label:'नया विकल्प',active:true,...(field==='transactionKinds'?{effect:'received'}:{})}]}}));
  }
 
  async function saveAccountSettings(e){
@@ -364,9 +365,10 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
   const amount=Number(txForm.amount);
   if(txForm.date<periodStart||txForm.date>periodEnd)return report('दिनांक चुने हुए पृष्ठ की अवधि में होनी चाहिए।');
   if(!txForm.date||!String(txForm.amount).trim()||!Number.isFinite(amount)||amount<=0)return report('वैध दिनांक और शून्य से अधिक राशि दर्ज करें।');
-  if(txForm.kind==='expense'&&!txForm.category)return report('खर्च का मद चुनें।');
+  const transactionEffect=store.settings.catalogues.transactionKinds.find(item=>item.value===txForm.kind)?.effect||txForm.kind;
+  if(transactionEffect==='expense'&&!txForm.category)return report('खर्च का मद चुनें।');
   try{
-   const record={date:txForm.date,kind:txForm.kind,kindLabel:catalogueLabel(store.settings.catalogues.transactionKinds,txForm.kind),amount,party:txForm.party.trim(),category:txForm.kind==='expense'?txForm.category:'',categoryLabel:catalogueLabel(store.settings.catalogues.expenseCategories,txForm.category),remarks:txForm.remarks.trim(),createdAt:serverTimestamp()};
+   const record={date:txForm.date,kind:txForm.kind,kindLabel:catalogueLabel(store.settings.catalogues.transactionKinds,txForm.kind),kindEffect:transactionEffect,amount,party:txForm.party.trim(),category:transactionEffect==='expense'?txForm.category:'',categoryLabel:catalogueLabel(store.settings.catalogues.expenseCategories,txForm.category),remarks:txForm.remarks.trim(),createdAt:serverTimestamp()};
    const ref=await addDoc(collection(db,'users',user.uid,'transactions'),record);
    setStore(current=>({...current,transactions:[...current.transactions,{id:ref.id,...record,created_at:new Date().toISOString()}]}));
    setTxForm(configuredTransactionForm(store.settings));success(navigator.onLine?'लेन-देन स्थानीय रूप से सुरक्षित; सर्वर से समन्वय जारी है।':'लेन-देन स्थानीय रूप से सुरक्षित; इंटरनेट उपलब्ध होने पर समन्वय होगा।');
@@ -448,7 +450,7 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
     <small>नाम बदले या विकल्प निष्क्रिय करें। पुराने लेन-देन और दूध प्रविष्टियाँ यथावत रहेंगी।</small>
     <CatalogueEditor title="दूध के प्रकार" items={settingsDraft.catalogues.milkTypes} onChange={items=>setSettingsDraft({...settingsDraft,catalogues:{...settingsDraft.catalogues,milkTypes:items}})} onAdd={()=>addCatalogueOption('milkTypes')}/>
     <CatalogueEditor title="दूध देने का समय" items={settingsDraft.catalogues.shifts} onChange={items=>setSettingsDraft({...settingsDraft,catalogues:{...settingsDraft.catalogues,shifts:items}})} onAdd={()=>addCatalogueOption('shifts')}/>
-    <CatalogueEditor title="लेन-देन के प्रकार" items={settingsDraft.catalogues.transactionKinds} onChange={items=>setSettingsDraft({...settingsDraft,catalogues:{...settingsDraft.catalogues,transactionKinds:items}})} onAdd={()=>addCatalogueOption('transactionKinds')}/>
+    <CatalogueEditor title="लेन-देन के प्रकार" items={settingsDraft.catalogues.transactionKinds} showEffects onChange={items=>setSettingsDraft({...settingsDraft,catalogues:{...settingsDraft.catalogues,transactionKinds:items}})} onAdd={()=>addCatalogueOption('transactionKinds')}/>
     <CatalogueEditor title="खर्च के मद" items={settingsDraft.catalogues.expenseCategories} onChange={items=>setSettingsDraft({...settingsDraft,catalogues:{...settingsDraft.catalogues,expenseCategories:items}})} onAdd={()=>addCatalogueOption('expenseCategories')}/>
    </div>
    <label>फुटर नोट (वैकल्पिक)<input className="full-text" maxLength="120" value={settingsDraft.footerNote} onChange={e=>setSettingsDraft({...settingsDraft,footerNote:e.target.value})} placeholder="शाखा, संस्था या संपर्क विवरण"/></label>
@@ -518,7 +520,7 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
      <label>लेन-देन का प्रकार<RadioChoices name="transaction-kind" value={txForm.kind} onChange={v=>setTxForm({...txForm,kind:v})} options={store.settings.catalogues.transactionKinds.filter(item=>item.active)}/></label>
      <label>राशि ({currencySymbol})<input className="number-input" type="number" min=".01" step=".01" inputMode="decimal" placeholder="0" value={txForm.amount} onChange={e=>setTxForm({...txForm,amount:e.target.value})} required/></label>
      <label>किससे / किसे (To Whom)<input className="text-input full-text" value={txForm.party} onChange={e=>setTxForm({...txForm,party:e.target.value})} placeholder="व्यक्ति या पार्टी का नाम"/></label>
-     {txForm.kind==='expense'&&<label>खर्च का मद<RadioChoices name="expense-category" value={txForm.category} onChange={v=>setTxForm({...txForm,category:v})} options={store.settings.catalogues.expenseCategories.filter(item=>item.active)}/></label>}
+     {(store.settings.catalogues.transactionKinds.find(item=>item.value===txForm.kind)?.effect||txForm.kind)==='expense'&&<label>खर्च का मद<RadioChoices name="expense-category" value={txForm.category} onChange={v=>setTxForm({...txForm,category:v})} options={store.settings.catalogues.expenseCategories.filter(item=>item.active)}/></label>}
      <label>टिप्पणी<textarea className="comment-input" rows="2" value={txForm.remarks} onChange={e=>setTxForm({...txForm,remarks:e.target.value})} placeholder="वैकल्पिक टिप्पणी"/></label>
      <p className="append-note">हर लेन-देन नई प्रविष्टि है। इसे बदला नहीं जा सकता; आवश्यकता होने पर हटाया जा सकता है।</p>
      <div className="form-actions"><button disabled={!profileReady}>नया लेन-देन सुरक्षित करें</button></div>
@@ -528,7 +530,7 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
      const kindLabel=t.kind==='received'?'प्राप्त':t.kind==='remained'?'बाकी':t.kind==='advance'?'अग्रिम':'खर्च';
      const cat=expenseCategories.find(c=>c.value===t.category)?.label||'अन्य';
      return <article className="record" key={t.id}>
-      <div><b>{kindLabel}{t.kind==='expense'?' · '+cat:''}</b><small>{t.date}{t.party?' · '+t.party:''}{t.remarks?' · '+t.remarks:''}</small></div>
+      <div><b>{kindLabel}{(t.kindEffect||store.settings.catalogues.transactionKinds.find(item=>item.value===t.kind)?.effect||t.kind)==='expense'?' · '+cat:''}</b><small>{t.date}{t.party?' · '+t.party:''}{t.remarks?' · '+t.remarks:''}</small></div>
       <strong>{money(t.amount)}</strong><div className="record-actions"><button type="button" className="delete-record" onClick={()=>deleteTransaction(t.id)}>हटाएँ</button></div>
      </article>
     })}{!periodTransactions.length&&<p className="empty">इस अवधि में कोई लेन-देन दर्ज नहीं है।</p>}</div>
