@@ -122,7 +122,8 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
 
 
  async function syncNow(){
-  if(syncBusy||!navigator.onLine){setSyncStatus('offline');return}
+  if(syncBusy)return;
+  if(!navigator.onLine){setSyncStatus('offline');return}
   const syncMonth=month;
   setSyncBusy(true);setSyncStatus('syncing');
   try{
