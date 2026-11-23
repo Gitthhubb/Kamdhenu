@@ -111,3 +111,9 @@ test('entry writes and deletions update local UI without awaiting server acknowl
   assert.match(txSave, /trackWrite\(transactionWrite/);
   assert.match(deleteMilk+deleteTx, /trackWrite\(deletion/);
 });
+
+test('resets account-specific cached state when the authenticated UID changes', async () => {
+  const source = await read('../src/main.jsx');
+  assert.match(source, /const accountChanged=accountUidRef\.current!==user\.uid/);
+  assert.match(source, /if\(accountChanged\)\{accountUidRef\.current=user\.uid;[^}]*setStore\(DEFAULT_STATE\)/);
+});
