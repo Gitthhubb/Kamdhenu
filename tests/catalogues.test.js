@@ -38,3 +38,15 @@ test('limits catalogue size and sanitises labels', () => {
   assert.equal(result.expenseCategories.length, 40);
   assert.equal(result.expenseCategories[0].label, 'विकल्प 0');
 });
+
+test('assigns accounting effects to transaction kinds and preserves custom effects', () => {
+  const result = normalizeCatalogues({
+    transactionKinds: [
+      { value: 'received', label: 'जमा', effect: 'received' },
+      { value: 'rent', label: 'किराया', effect: 'expense' },
+      { value: 'bad_effect', label: 'अमान्य प्रभाव', effect: 'unknown' },
+    ],
+  });
+  assert.equal(result.transactionKinds.find(item => item.value === 'rent').effect, 'expense');
+  assert.equal(result.transactionKinds.find(item => item.value === 'bad_effect').effect, 'received');
+});
