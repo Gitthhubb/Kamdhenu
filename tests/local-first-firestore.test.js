@@ -91,3 +91,18 @@ test('cache miss does not gate account UI indefinitely', async () => {
   assert.ok((source.match(/disabled=\{!profileReady\}/g) || []).length >= 2);
   assert.match(source, /disabled=\{!settingsReady\}/);
 });
+
+test('entry writes and deletions update local UI without awaiting server acknowledgement', async () => {
+  const source = await read('../src/main.jsx');
+  const milkSave = source.slice(source.indexOf('async function saveMilk'), source.indexOf('async function saveTransaction'));
+  const txSave = source.slice(source.indexOf('async function saveTransaction'), source.indexOf('function exportCsv'));
+  const deleteMilk = source.slice(source.indexOf('async function deleteMilk'), source.indexOf('async function deleteTransaction'));
+  const deleteTx = source.slice(source.indexOf('async function deleteTransaction'), source.indexOf('function selectPeriodPage'));
+  assert.match(milkSave, /const ref=doc\(collection/);
+  assert.match(milkSave, /setStore\(next\)/);
+  assert.doesNotMatch(milkSave, /await addDoc|await setDoc/);
+  assert.match(txSave, /const ref=doc\(collection/);
+  assert.match(txSave, /setStore\(current=>/);
+  assert.doesNotMatch(txSave, /await addDoc|await setDoc/);
+  assert.doesNotMatch(deleteMilk+deleteTx, /await deleteDoc/);
+});
