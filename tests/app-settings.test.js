@@ -54,3 +54,16 @@ test('falls back safely for unsupported currency and invalid text values', () =>
   assert.equal(result.ledgerName, DEFAULT_SETTINGS.ledgerName);
   assert.equal(result.currency, 'INR');
 });
+
+test('moves a default away from an inactive custom milk type', () => {
+  const result = normalizeSettings({
+    defaultMilkType: 'goat',
+    catalogues: {
+      milkTypes: [
+        { value: 'goat', label: 'बकरी', active: false },
+        { value: 'buffalo', label: 'भैंस', active: true },
+      ],
+    },
+  });
+  assert.equal(result.defaultMilkType, 'buffalo');
+});
