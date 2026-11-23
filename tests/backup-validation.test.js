@@ -165,7 +165,7 @@ test('restores custom catalogue values and preserves historical display labels',
       quantity: 1, rate: 80, amount: 80, remarks: '',
     }],
     transactions: [{
-      id: 'tx-custom', date: '2026-11-12', kind: 'feed_credit', kindLabel: 'चारा उधार',
+      id: 'tx-custom', date: '2026-11-12', kind: 'feed_credit', kindLabel: 'चारा उधार', kindEffect: 'expense',
       amount: 100, party: 'दुकान', category: 'mineral_mix', categoryLabel: 'खनिज मिश्रण', remarks: '',
     }],
     settings: {
@@ -183,5 +183,6 @@ test('restores custom catalogue values and preserves historical display labels',
   assert.equal(result.rows[0].milkTypeLabel, 'बकरी');
   assert.equal(result.rows[0].shiftLabel, 'रात्रि');
   assert.equal(result.transactions[0].kind, 'feed_credit');
+  assert.equal(result.transactions[0].kindEffect, 'expense');
   assert.equal(result.transactions[0].categoryLabel, 'खनिज मिश्रण');
 });
