@@ -32,9 +32,13 @@ function textValue(value, fallback, maxLength) {
 export function normalizeSettings(value, rates = {}) {
   const source = isObject(value) ? value : {};
   const legacyPersonalMode = source.personalMode === true;
-  const defaultMilkType = source.defaultMilkType === 'cow' || source.defaultMilkType === 'buffalo'
-    ? source.defaultMilkType
-    : 'buffalo';
+  const catalogues = normalizeCatalogues(source.catalogues);
+  const requestedMilkType = typeof source.defaultMilkType === 'string' ? source.defaultMilkType : '';
+  const defaultMilkType = catalogues.milkTypes.some(item => item.value === requestedMilkType)
+    ? requestedMilkType
+    : (catalogues.milkTypes.find(item => item.value === 'buffalo' && item.active)?.value
+      || catalogues.milkTypes.find(item => item.active)?.value
+      || 'buffalo');
   const hasRate = Object.prototype.hasOwnProperty.call(source, 'defaultRate');
   const legacyRate = Object.prototype.hasOwnProperty.call(source, 'buffaloRate')
     ? source.buffaloRate
@@ -61,6 +65,6 @@ export function normalizeSettings(value, rates = {}) {
     lockDefaultRate: typeof source.lockDefaultRate === 'boolean'
       ? source.lockDefaultRate
       : DEFAULT_SETTINGS.lockDefaultRate,
-    catalogues: normalizeCatalogues(source.catalogues),
+    catalogues,
   };
 }
