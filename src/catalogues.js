@@ -8,10 +8,10 @@ export const DEFAULT_CATALOGUES = Object.freeze({
     Object.freeze({ value: 'evening', label: 'शाम', active: true }),
   ]),
   transactionKinds: Object.freeze([
-    Object.freeze({ value: 'received', label: 'प्राप्त', active: true }),
-    Object.freeze({ value: 'remained', label: 'बाकी', active: true }),
-    Object.freeze({ value: 'advance', label: 'अग्रिम', active: true }),
-    Object.freeze({ value: 'expense', label: 'खर्च', active: true }),
+    Object.freeze({ value: 'received', label: 'प्राप्त', active: true, effect: 'received' }),
+    Object.freeze({ value: 'remained', label: 'बाकी', active: true, effect: 'remained' }),
+    Object.freeze({ value: 'advance', label: 'अग्रिम', active: true, effect: 'advance' }),
+    Object.freeze({ value: 'expense', label: 'खर्च', active: true, effect: 'expense' }),
   ]),
   expenseCategories: Object.freeze([
     Object.freeze({ value: 'paddy_stalk', label: 'धान का पुआल', active: true }),
@@ -38,7 +38,13 @@ function normalizeList(input, fallback) {
     const label = item.label.trim().slice(0, 60);
     if (!label || seen.has(value)) continue;
     seen.add(value);
-    result.push({ value, label, active: item.active !== false });
+    const entry = { value, label, active: item.active !== false };
+    if (fallback.some(option => Object.prototype.hasOwnProperty.call(option, 'effect'))) {
+      const validEffects = ['received', 'remained', 'advance', 'expense'];
+      const fallbackEffect = fallback.find(option => option.value === value)?.effect || 'received';
+      entry.effect = validEffects.includes(item.effect) ? item.effect : fallbackEffect;
+    }
+    result.push(entry);
   }
   if (!result.some(item => item.active)) return fallback.map(item => ({ ...item }));
   return result;
