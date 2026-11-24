@@ -130,9 +130,13 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
     const cachedTransactions=(txSnap?.docs||[]).map(d=>({id:d.id,...d.data(),created_at:d.data().createdAt?.toDate?.()?.toISOString?.()||''}));
     const nextRates={...DEFAULT_STATE.rates,...(profile.rates||{})};
     const nextBuyers=Array.isArray(profile.buyers)?profile.buyers:[];
+    const baseSettings=withTransactionParties(
+     normalizeSettings(profile.settings||{},profile.rates||{}),
+     cachedTransactions.map(item=>item.party)
+    );
     const nextSettings=mergeMilkSuppliers(
-     withTransactionParties(normalizeSettings(profile.settings||{},profile.rates||{}),cachedTransactions.map(item=>item.party)),
-     [...nextBuyers,...cachedRows.map(item=>item.buyer),nextSettings.defaultMilkman],
+     baseSettings,
+     [...nextBuyers,...cachedRows.map(item=>item.buyer),baseSettings.defaultMilkman],
      profile.supplierDefaults||[]
     );
     const next={...DEFAULT_STATE,...profile,rows:cachedRows,transactions:cachedTransactions,rates:nextRates,settings:nextSettings,buyers:nextBuyers};
@@ -185,9 +189,13 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
    const nextBuyers=Array.isArray(profile.buyers)?profile.buyers:[];
    const nextTransactions=[...txById.values()];
    const nextRows=[...milkById.values()];
+   const baseSettings=withTransactionParties(
+    normalizeSettings(profile.settings||{},profile.rates||{}),
+    nextTransactions.map(item=>item.party)
+   );
    const nextSettings=mergeMilkSuppliers(
-    withTransactionParties(normalizeSettings(profile.settings||{},profile.rates||{}),nextTransactions.map(item=>item.party)),
-    [...nextBuyers,...nextRows.map(item=>item.buyer),nextSettings.defaultMilkman],
+    baseSettings,
+    [...nextBuyers,...nextRows.map(item=>item.buyer),baseSettings.defaultMilkman],
     profile.supplierDefaults||[]
    );
    const next={...DEFAULT_STATE,...profile,rows:nextRows,transactions:nextTransactions,rates:nextRates,settings:nextSettings,buyers:nextBuyers};
