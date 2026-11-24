@@ -354,13 +354,26 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
    buyers:[...new Set([...store.buyers,...(Array.isArray(remoteProfile.buyers)?remoteProfile.buyers:[])])],
    settings:normalizeSettings(remoteProfile.settings||store.settings,remoteProfile.rates||store.rates),
   };
-  const profileSaved=await persist({
-   ...restoreBase,
-   rates:{...restoreBase.rates,...backup.rates},
-   buyers:[...new Set([...restoreBase.buyers,...backup.buyers])],
-   settings:{...restoreBase.settings,...backup.settings},
-  },true);
+  const mergedRates={...restoreBase.rates,...backup.rates};
+  const mergedBuyers=[...new Set([...restoreBase.buyers,...backup.buyers])];
+  const mergedCatalogues=Object.fromEntries(Object.keys(restoreBase.settings.catalogues).map(key=>{
+   const options=new Map((restoreBase.settings.catalogues[key]||[]).map(item=>[item.value,item]));
+   for(const item of backup.settings.catalogues[key]||[])options.set(item.value,item);
+   return [key,[...options.values()]];
+  }));
+  const mergedSettings=withTransactionParties(normalizeSettings({
+   ...restoreBase.settings,
+   ...backup.settings,
+   catalogues:mergedCatalogues,
+  },mergedRates),[...transactionExisting.map(item=>item.party),...backup.transactions.map(item=>item.party)]);
+  const restoredProfile={...restoreBase,rates:mergedRates,buyers:mergedBuyers,settings:mergedSettings};
+  const profileSaved=await persist(restoredProfile,true);
   setSettingsReady(true);
+  setSettingsDraft(mergedSettings);
+  setRatesDraft(mergedRates);
+  setBuyersDraft(mergedBuyers);
+  setForm(configuredMilkForm(mergedSettings,mergedRates));
+  setTxForm(configuredTransactionForm(mergedSettings));
   if(!profileSaved){
    throw new Error('बैकअप की प्रविष्टियाँ जोड़ी गई हैं, लेकिन दरें और सेटिंग्स सुरक्षित नहीं हो सकीं। JSON बैकअप दोबारा पुनर्स्थापित करें; जो प्रविष्टियाँ पहले जुड़ चुकी हैं वे दोहराई नहीं जाएँगी।');
   }
