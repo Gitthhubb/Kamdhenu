@@ -100,3 +100,35 @@ test('assigns the first recorded rate to a new supplier and does not overwrite a
   };
   assert.equal(getMilkSupplierDefaultRate(inactive, 'राम डेयरी'), '');
 });
+
+test('merges queued supplier defaults without replacing a configured catalogue', () => {
+  const local = {
+    catalogues: normalizeCatalogues({
+      milkSuppliers: [
+        { value: 'supplier_ram', label: 'राम डेयरी', defaultRate: '', active: true },
+      ],
+    }),
+  };
+  const result = mergeMilkSuppliers(local, [], [
+    { value: 'supplier_ram', label: 'राम डेयरी', defaultRate: '72.5', active: true },
+    { value: 'supplier_shyam', label: 'श्याम डेयरी', defaultRate: '68', active: true },
+  ]);
+  assert.deepEqual(result.catalogues.milkSuppliers, [
+    { value: 'supplier_ram', label: 'राम डेयरी', defaultRate: '72.5', active: true },
+    { value: 'supplier_shyam', label: 'श्याम डेयरी', defaultRate: '68', active: true },
+  ]);
+});
+
+test('keeps a deliberately configured supplier rate ahead of a queued profile copy', () => {
+  const local = {
+    catalogues: normalizeCatalogues({
+      milkSuppliers: [
+        { value: 'supplier_ram', label: 'राम डेयरी', defaultRate: '75', active: true },
+      ],
+    }),
+  };
+  const result = mergeMilkSuppliers(local, [], [
+    { value: 'supplier_ram', label: 'राम डेयरी', defaultRate: '72', active: true },
+  ]);
+  assert.equal(result.catalogues.milkSuppliers[0].defaultRate, '75');
+});
