@@ -130,7 +130,7 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
     const nextBuyers=Array.isArray(profile.buyers)?profile.buyers:[];
     const nextSettings=mergeMilkSuppliers(
      withTransactionParties(normalizeSettings(profile.settings||{},profile.rates||{}),cachedTransactions.map(item=>item.party)),
-     [...nextBuyers,...cachedRows.map(item=>item.buyer)]
+     [...nextBuyers,...cachedRows.map(item=>item.buyer),nextSettings.defaultMilkman]
     );
     const next={...DEFAULT_STATE,...profile,rows:cachedRows,transactions:cachedTransactions,rates:nextRates,settings:nextSettings,buyers:nextBuyers};
     setStore(next);
@@ -184,7 +184,7 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
    const nextRows=[...milkById.values()];
    const nextSettings=mergeMilkSuppliers(
     withTransactionParties(normalizeSettings(profile.settings||{},profile.rates||{}),nextTransactions.map(item=>item.party)),
-    [...nextBuyers,...nextRows.map(item=>item.buyer)]
+    [...nextBuyers,...nextRows.map(item=>item.buyer),nextSettings.defaultMilkman]
    );
    const next={...DEFAULT_STATE,...profile,rows:nextRows,transactions:nextTransactions,rates:nextRates,settings:nextSettings,buyers:nextBuyers};
    setStore(next);setSettingsDraft(next.settings);setRatesDraft(next.rates);setForm(configuredMilkForm(next.settings,next.rates));setTxForm(configuredTransactionForm(next.settings));
@@ -208,7 +208,12 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
    if(labels.some(label=>!label))return report('प्रत्येक पूर्वनिर्धारित विकल्प का नाम रिक्त नहीं हो सकता।');
    if(new Set(labels).size!==labels.length)return report('एक ही सूची में विकल्पों के नाम दोहराए नहीं जा सकते।');
   }
-  const settings=normalizeSettings(settingsDraft,ratesDraft);
+  const previousQuickSupplier=(store.settings.catalogues.milkSuppliers||[]).find(item=>item.label===settingsDraft.defaultMilkman);
+  const renamedQuickSupplier=previousQuickSupplier&&(settingsDraft.catalogues.milkSuppliers||[]).find(item=>item.value===previousQuickSupplier.value);
+  const preparedSettingsDraft=previousQuickSupplier&&renamedQuickSupplier&&renamedQuickSupplier.label!==previousQuickSupplier.label
+   ?{...settingsDraft,defaultMilkman:renamedQuickSupplier.label}
+   :settingsDraft;
+  const settings=normalizeSettings(preparedSettingsDraft,ratesDraft);
   const nextRates={...ratesDraft};
   for(const item of settings.catalogues.milkTypes){
    const raw=nextRates[item.value+'_rate']??0;
@@ -217,8 +222,8 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
    nextRates[item.value+'_rate']=rate;
   }
   if(!settingsDraft.ledgerName.trim())return report('लेजर या व्यवसाय का नाम दर्ज करें।');
-  if(settings.quickEntryEnabled&&(!settings.defaultMilkman.trim()||!settings.defaultRate.trim()||!Number.isFinite(Number(settings.defaultRate))||Number(settings.defaultRate)<=0||!settings.catalogues.milkTypes.some(item=>item.value===settings.defaultMilkType&&item.active))){
-   return report('त्वरित प्रविष्टि के लिए सप्लायर का नाम और शून्य से अधिक डिफ़ॉल्ट दर दर्ज करें।');
+  if(settings.quickEntryEnabled&&(!settings.defaultMilkman.trim()||!settings.defaultRate.trim()||!Number.isFinite(Number(settings.defaultRate))||Number(settings.defaultRate)<=0||!settings.catalogues.milkTypes.some(item=>item.value===settings.defaultMilkType&&item.active)||!settings.catalogues.milkSuppliers.some(item=>item.active&&item.label.toLocaleLowerCase()===settings.defaultMilkman.toLocaleLowerCase()))){
+   return report('त्वरित प्रविष्टि के लिए सक्रिय सप्लायर, दूध का प्रकार और शून्य से अधिक डिफ़ॉल्ट दर निर्धारित करें।');
   }
   for(const supplier of settings.catalogues.milkSuppliers){
    const raw=supplier.defaultRate??'';
@@ -378,6 +383,7 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
    ...mergedBuyers,
    ...milkExisting.map(item=>item.milkman),
    ...backup.rows.map(item=>item.milkman),
+   mergedSettings.defaultMilkman,
   ]);
   const nextBuyers=restoredSettings.catalogues.milkSuppliers.filter(item=>item.active).map(item=>item.label);
   const restoredProfile={...restoreBase,rates:mergedRates,buyers:nextBuyers,settings:restoredSettings};
@@ -554,7 +560,7 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
    <label className="setting-check"><input type="checkbox" checked={settingsDraft.quickEntryEnabled} onChange={e=>setSettingsDraft({...settingsDraft,quickEntryEnabled:e.target.checked})}/> त्वरित प्रविष्टि प्रोफ़ाइल सक्षम करें</label>
    {settingsDraft.quickEntryEnabled&&<>
     <label>प्रोफ़ाइल का नाम<input className="full-text" maxLength="50" value={settingsDraft.quickEntryLabel} onChange={e=>setSettingsDraft({...settingsDraft,quickEntryLabel:e.target.value})} placeholder="उदाहरण: सुबह की सप्लाई"/></label>
-    <label>निश्चित सप्लायर / दूधवाला<input className="full-text" list="milk-supplier-options" maxLength="80" value={settingsDraft.defaultMilkman} onChange={e=>setSettingsDraft({...settingsDraft,defaultMilkman:e.target.value})} placeholder="नाम दर्ज करें" required/></label>
+    <label>निश्चित सप्लायर / दूधवाला<input className="full-text" list="milk-supplier-options" maxLength="60" value={settingsDraft.defaultMilkman} onChange={e=>setSettingsDraft({...settingsDraft,defaultMilkman:e.target.value})} placeholder="नाम दर्ज करें" required/></label>
     <label>डिफ़ॉल्ट दूध का प्रकार<RadioChoices name="quick-profile-milk-type" value={settingsDraft.defaultMilkType} onChange={v=>setSettingsDraft({...settingsDraft,defaultMilkType:v})} options={settingsDraft.catalogues.milkTypes.filter(item=>item.active)}/></label>
     <label>डिफ़ॉल्ट दर ({currencySymbol}/लीटर)<input className="number-input" type="number" min=".01" step=".01" inputMode="decimal" value={settingsDraft.defaultRate} onChange={e=>setSettingsDraft({...settingsDraft,defaultRate:e.target.value})} placeholder="उदाहरण: 70" required/></label>
     <label className="setting-check"><input type="checkbox" checked={settingsDraft.lockDefaultRate} onChange={e=>setSettingsDraft({...settingsDraft,lockDefaultRate:e.target.checked})}/> प्रविष्टि में डिफ़ॉल्ट दर स्थिर रखें</label>
@@ -603,7 +609,7 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
    {notice&&<p className="notice" role="status">{notice}</p>}
    {tab==='Milk'&&<>
     <form className="entry-form" onSubmit={saveMilk}>
-     <label>दूधवाला (Milkman)<input className="text-input full-text" list="milk-supplier-options" value={store.settings.quickEntryEnabled?store.settings.defaultMilkman:form.buyer} onChange={e=>{
+     <label>दूधवाला (Milkman)<input className="text-input full-text" list="milk-supplier-options" maxLength="60" value={store.settings.quickEntryEnabled?store.settings.defaultMilkman:form.buyer} onChange={e=>{
       const buyer=e.target.value;
       const supplierRate=getMilkSupplierDefaultRate(store.settings,buyer);
       setForm(current=>({...current,buyer,rate:supplierRate!==''?supplierRate:String(store.rates[current.milk_type+'_rate']??0)}));
