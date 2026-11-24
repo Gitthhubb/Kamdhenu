@@ -1,7 +1,7 @@
 import { normalizeCatalogues } from '../src/catalogues.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { DEFAULT_SETTINGS, normalizeSettings } from '../src/app-settings.js';
+import { DEFAULT_SETTINGS, normalizeSettings, hasCachedAccountProfile } from '../src/app-settings.js';
 
 test('new accounts receive neutral, reusable defaults', () => {
   assert.deepEqual(normalizeSettings(), { ...DEFAULT_SETTINGS });
@@ -66,4 +66,10 @@ test('moves a default away from an inactive custom milk type', () => {
     },
   });
   assert.equal(result.defaultMilkType, 'buffalo');
+});
+
+test('does not unlock configuration from a cached non-existent profile snapshot', () => {
+  assert.equal(hasCachedAccountProfile(null), false);
+  assert.equal(hasCachedAccountProfile({ exists: () => false }), false);
+  assert.equal(hasCachedAccountProfile({ exists: () => true }), true);
 });
