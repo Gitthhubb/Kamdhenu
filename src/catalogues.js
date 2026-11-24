@@ -13,6 +13,7 @@ export const DEFAULT_CATALOGUES = Object.freeze({
     Object.freeze({ value: 'advance', label: 'अग्रिम', active: true, effect: 'advance' }),
     Object.freeze({ value: 'expense', label: 'खर्च', active: true, effect: 'expense' }),
   ]),
+  transactionParties: Object.freeze([]),
   expenseCategories: Object.freeze([
     Object.freeze({ value: 'paddy_stalk', label: 'धान का पुआल', active: true }),
     Object.freeze({ value: 'cattle_feed', label: 'पशु आहार', active: true }),

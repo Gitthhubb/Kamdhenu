@@ -39,6 +39,19 @@ test('limits catalogue size and sanitises labels', () => {
   assert.equal(result.expenseCategories[0].label, 'विकल्प 0');
 });
 
+test('preserves configurable transaction-party names and their active state', () => {
+  const result = normalizeCatalogues({
+    transactionParties: [
+      { value: 'feed_shop', label: 'चारा दुकान', active: true },
+      { value: 'dairy_customer', label: 'दूध ग्राहक', active: false },
+    ],
+  });
+  assert.deepEqual(result.transactionParties, [
+    { value: 'feed_shop', label: 'चारा दुकान', active: true },
+    { value: 'dairy_customer', label: 'दूध ग्राहक', active: false },
+  ]);
+});
+
 test('assigns accounting effects to transaction kinds and preserves custom effects', () => {
   const result = normalizeCatalogues({
     transactionKinds: [
