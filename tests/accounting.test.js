@@ -40,3 +40,7 @@ test('ignores malformed transaction amounts and unsupported effects', () => {
   ], kinds);
   assert.deepEqual(totals, { received: 0, remained: 0, advance: 0, expense: 0 });
 });
+
+test('falls back to the configured effect when a historical effect is invalid', () => {
+  assert.equal(getTransactionEffect({ kind: 'feed_credit', kindEffect: 'unknown' }, kinds), 'expense');
+});
