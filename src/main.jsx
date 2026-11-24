@@ -31,6 +31,22 @@ const sortNewest=(a,b)=>{
  const ad=a.sale_date||a.date||'',bd=b.sale_date||b.date||'';
  return bd.localeCompare(ad)||String(b.created_at||'').localeCompare(String(a.created_at||''));
 };
+function catalogueValue(prefix,label,items){
+ const hash=Array.from(label).reduce((value,char)=>(value*31+char.charCodeAt(0))>>>0,7).toString(36);
+ const base=prefix+'_'+hash;
+ let candidate=base,suffix=2;
+ while(items.some(item=>item.value===candidate))candidate=base+'_'+suffix++;
+ return candidate;
+}
+function withTransactionParties(settings,parties=[]){
+ const items=[...(settings.catalogues.transactionParties||[])];
+ for(const raw of parties){
+  const label=String(raw||'').trim().slice(0,60);
+  if(!label||items.some(item=>item.label.toLocaleLowerCase()===label.toLocaleLowerCase()))continue;
+  items.push({value:catalogueValue('party',label,items),label,active:true});
+ }
+ return {...settings,catalogues:{...settings.catalogues,transactionParties:items}};
+}
 function changeLedgerTab(value,setTab){
  setTab(value);
  const url=new URL(window.location.href);
@@ -40,15 +56,28 @@ function changeLedgerTab(value,setTab){
 function RadioChoices({value,onChange,options,name}){
  return <div className="radio-group" role="radiogroup">{options.map(o=><label className={'radio-choice '+(value===o.value?'chosen':'')} key={o.value}><input type="radio" name={name} value={o.value} checked={value===o.value} onChange={()=>onChange(o.value)}/><span>{o.label}</span></label>)}</div>;
 }
-function CatalogueEditor({title,items,onChange,onAdd,showEffects=false}){
+function CatalogueEditor({title,items,onChange,onAdd,showEffects=false,showRates=false,rates={},onRateChange}){
  return <fieldset className="catalogue-editor"><legend>{title}</legend>
-  {items.map((item,index)=><div className="catalogue-option" key={item.value}>
+  {items.map((item,index)=><div className={'catalogue-option '+(showRates?'with-rate':'')} key={item.value}>
    <input aria-label={title+' का नाम'} maxLength="60" value={item.label} onChange={e=>onChange(items.map(x=>x.value===item.value?{...x,historicalLabel:x.historicalLabel||x.label,label:e.target.value}:x))}/>
+   {showRates&&<input aria-label={item.label+' की प्रति लीटर दर'} type="number" min="0" step=".01" inputMode="decimal" placeholder="दर/लीटर" value={rates[item.value+'_rate']??''} onChange={e=>onRateChange(item.value+'_rate',e.target.value)}/>}
    {showEffects&&<select aria-label={title+' का लेखा प्रभाव'} value={item.effect||'received'} onChange={e=>onChange(items.map(x=>x.value===item.value?{...x,effect:e.target.value}:x))}><option value="received">जमा</option><option value="remained">बाकी</option><option value="advance">अग्रिम</option><option value="expense">खर्च</option></select>}
    <label><input type="checkbox" checked={item.active} disabled={item.active&&items.filter(x=>x.active).length===1} onChange={e=>onChange(items.map(x=>x.value===item.value?{...x,active:e.target.checked}:x))}/> सक्रिय</label>
    <div className="catalogue-order"><button type="button" disabled={index===0} aria-label="ऊपर करें" onClick={()=>{const next=[...items];[next[index-1],next[index]]=[next[index],next[index-1]];onChange(next)}}>↑</button><button type="button" disabled={index===items.length-1} aria-label="नीचे करें" onClick={()=>{const next=[...items];[next[index+1],next[index]]=[next[index],next[index+1]];onChange(next)}}>↓</button></div>
   </div>)}
   <button type="button" className="secondary" onClick={onAdd}>विकल्प जोड़ें</button>
+ </fieldset>;
+}
+function NameListEditor({title,items,onChange}){
+ const [newName,setNewName]=useState('');
+ const addName=()=>{const value=newName.trim();if(!value||items.some(item=>item.toLocaleLowerCase()===value.toLocaleLowerCase()))return;onChange([...items,value]);setNewName('')};
+ return <fieldset className="catalogue-editor name-list-editor"><legend>{title}</legend>
+  {items.map((item,index)=><div className="name-list-option" key={index}>
+   <input aria-label={title+' का नाम'} maxLength="80" value={item} onChange={e=>onChange(items.map((x,i)=>i===index?e.target.value:x))}/>
+   <button type="button" className="secondary" aria-label="सूची से हटाएँ" onClick={()=>onChange(items.filter((_,i)=>i!==index))}>हटाएँ</button>
+  </div>)}
+  <div className="name-list-add"><input maxLength="80" value={newName} onChange={e=>setNewName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();addName()}}} placeholder="नया नाम दर्ज करें"/><button type="button" className="secondary" onClick={addName}>जोड़ें</button></div>
+  <small>सूची से नाम हटाने पर पुरानी प्रविष्टियों में दर्ज नाम नहीं बदलेंगे।</small>
  </fieldset>;
 }
 function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
@@ -66,6 +95,8 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
  const [txForm,setTxForm]=useState(blankTransaction());
  const [settingsOpen,setSettingsOpen]=useState(false);
  const [settingsDraft,setSettingsDraft]=useState({...initial.settings});
+ const [ratesDraft,setRatesDraft]=useState({...initial.rates});
+ const [buyersDraft,setBuyersDraft]=useState([...initial.buyers]);
  const [syncStatus,setSyncStatus]=useState('loading');
  const [syncBusy,setSyncBusy]=useState(false);
  const pendingWritesRef=useRef(0);
@@ -84,7 +115,7 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
   let active=true;
   const cacheVersion=syncVersionRef.current;
   const accountChanged=accountUidRef.current!==user.uid;
-  if(accountChanged){accountUidRef.current=user.uid;pendingWritesRef.current=0;pendingUidRef.current=user.uid;setStore(DEFAULT_STATE);setSettingsDraft({...DEFAULT_SETTINGS});setForm(blankForm(DEFAULT_STATE.rates));setTxForm(blankTransaction());setSettingsOpen(false)}
+  if(accountChanged){accountUidRef.current=user.uid;pendingWritesRef.current=0;pendingUidRef.current=user.uid;setStore(DEFAULT_STATE);setSettingsDraft({...DEFAULT_SETTINGS});setRatesDraft({...DEFAULT_STATE.rates});setBuyersDraft([]);setForm(blankForm(DEFAULT_STATE.rates));setTxForm(blankTransaction());setSettingsOpen(false)}
   else if(pendingUidRef.current!==user.uid){pendingWritesRef.current=0;pendingUidRef.current=user.uid}
   setSyncStatus(navigator.onLine?'loading':'offline');
   setProfileReady(false);
@@ -102,15 +133,16 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
     ]);
     if(!active||syncVersionRef.current!==cacheVersion)return;
     const profile=profileSnap?.exists()?profileSnap.data():{};
-    const next={...DEFAULT_STATE,...profile,
-     rows:(milkSnap?.docs||[]).map(d=>({id:d.id,...d.data(),sale_date:d.data().date,buyer:d.data().milkman,milk_type:d.data().milkType,created_at:d.data().createdAt?.toDate?.()?.toISOString?.()||''})),
-     transactions:(txSnap?.docs||[]).map(d=>({id:d.id,...d.data(),created_at:d.data().createdAt?.toDate?.()?.toISOString?.()||''})),
-     rates:{...DEFAULT_STATE.rates,...(profile.rates||{})},
-     settings:normalizeSettings(profile.settings||{},profile.rates||{}),
-     buyers:Array.isArray(profile.buyers)?profile.buyers:[]
-    };
+    const cachedRows=(milkSnap?.docs||[]).map(d=>({id:d.id,...d.data(),sale_date:d.data().date,buyer:d.data().milkman,milk_type:d.data().milkType,created_at:d.data().createdAt?.toDate?.()?.toISOString?.()||''}));
+    const cachedTransactions=(txSnap?.docs||[]).map(d=>({id:d.id,...d.data(),created_at:d.data().createdAt?.toDate?.()?.toISOString?.()||''}));
+    const nextRates={...DEFAULT_STATE.rates,...(profile.rates||{})};
+    const nextBuyers=Array.isArray(profile.buyers)?profile.buyers:[];
+    const nextSettings=withTransactionParties(normalizeSettings(profile.settings||{},profile.rates||{}),cachedTransactions.map(item=>item.party));
+    const next={...DEFAULT_STATE,...profile,rows:cachedRows,transactions:cachedTransactions,rates:nextRates,settings:nextSettings,buyers:nextBuyers};
     setStore(next);
     setSettingsDraft(next.settings);
+    setRatesDraft(next.rates);
+    setBuyersDraft(next.buyers);
     setSettingsReady(Boolean(profileSnap));
     setForm(configuredMilkForm(next.settings,next.rates));
     setTxForm(configuredTransactionForm(next.settings));
@@ -153,8 +185,12 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
    const txById=new Map(txSnap.docs.map(d=>[d.id,{id:d.id,...d.data(),created_at:d.data().createdAt?.toDate?.()?.toISOString?.()||''}]));
    (cachedMilk?.docs||[]).filter(d=>d.metadata.hasPendingWrites).forEach(d=>milkById.set(d.id,{id:d.id,...d.data(),sale_date:d.data().date,buyer:d.data().milkman,milk_type:d.data().milkType,created_at:d.data().createdAt?.toDate?.()?.toISOString?.()||''}));
    (cachedTx?.docs||[]).filter(d=>d.metadata.hasPendingWrites).forEach(d=>txById.set(d.id,{id:d.id,...d.data(),created_at:d.data().createdAt?.toDate?.()?.toISOString?.()||''}));
-   const next={...DEFAULT_STATE,...profile,rows:[...milkById.values()],transactions:[...txById.values()],rates:{...DEFAULT_STATE.rates,...(profile.rates||{})},settings:normalizeSettings(profile.settings||{},profile.rates||{}),buyers:Array.isArray(profile.buyers)?profile.buyers:[]};
-   setStore(next);setSettingsDraft(next.settings);setForm(configuredMilkForm(next.settings,next.rates));setTxForm(configuredTransactionForm(next.settings));
+   const nextRates={...DEFAULT_STATE.rates,...(profile.rates||{})};
+   const nextBuyers=Array.isArray(profile.buyers)?profile.buyers:[];
+   const nextTransactions=[...txById.values()];
+   const nextSettings=withTransactionParties(normalizeSettings(profile.settings||{},profile.rates||{}),nextTransactions.map(item=>item.party));
+   const next={...DEFAULT_STATE,...profile,rows:[...milkById.values()],transactions:nextTransactions,rates:nextRates,settings:nextSettings,buyers:nextBuyers};
+   setStore(next);setSettingsDraft(next.settings);setRatesDraft(next.rates);setBuyersDraft(next.buyers);setForm(configuredMilkForm(next.settings,next.rates));setTxForm(configuredTransactionForm(next.settings));
    setProfileReady(true);setSettingsReady(true);setSyncStatus(pendingWritesRef.current?'pending':'synced');success('सर्वर से डेटा अपडेट हो गया।');
   }catch(err){report(err);setSyncStatus(navigator.onLine?'error':'offline')}
   finally{setSyncBusy(false)}
@@ -167,14 +203,23 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
  async function saveAccountSettings(e){
   e.preventDefault();
   if(!settingsReady)return report('सेटिंग्स बदलने से पहले Sync Now चलाकर सर्वर प्रोफ़ाइल प्राप्त करें।');
-  const settings=normalizeSettings(settingsDraft,store.rates);
+  const settings=normalizeSettings(settingsDraft,ratesDraft);
+  const nextRates={...ratesDraft};
+  for(const item of settings.catalogues.milkTypes){
+   const raw=nextRates[item.value+'_rate']??0;
+   const rate=raw===''?0:Number(raw);
+   if(!Number.isFinite(rate)||rate<0)return report(item.label+' की दर शून्य या उससे अधिक वैध संख्या होनी चाहिए।');
+   nextRates[item.value+'_rate']=rate;
+  }
   if(!settingsDraft.ledgerName.trim())return report('लेजर या व्यवसाय का नाम दर्ज करें।');
   if(settings.quickEntryEnabled&&(!settings.defaultMilkman.trim()||!settings.defaultRate.trim()||!Number.isFinite(Number(settings.defaultRate))||Number(settings.defaultRate)<=0||!settings.catalogues.milkTypes.some(item=>item.value===settings.defaultMilkType&&item.active))){
    return report('त्वरित प्रविष्टि के लिए सप्लायर का नाम और शून्य से अधिक डिफ़ॉल्ट दर दर्ज करें।');
   }
-  const next={...store,settings};
+  const next={...store,rates:nextRates,buyers:[...new Set(buyersDraft.map(value=>value.trim()).filter(Boolean))],settings};
   if(await persist(next)){
    setSettingsDraft(settings);
+   setRatesDraft(nextRates);
+   setBuyersDraft(next.buyers);
    setForm(configuredMilkForm(settings,next.rates));
    setTxForm(configuredTransactionForm(settings));
    setSettingsOpen(false);
@@ -385,8 +430,10 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
    const ref=doc(collection(db,'users',user.uid,'milk'));
    const milkWrite=setDoc(ref,record);trackWrite(milkWrite,err=>{setStore(current=>({...current,rows:current.rows.filter(item=>item.id!==ref.id)}));report(err)});
    const row={id:ref.id,...record,sale_date:record.date,buyer:milkman,milk_type:milkType,created_at:new Date().toISOString()};
-   const next={...store,rows:[...store.rows,row],buyers:[...new Set([...store.buyers,milkman])],rates:{...store.rates,[milkType+'_rate']:rate}};
+   const next={...store,rows:[...store.rows,row],buyers:[...store.buyers,milkman].filter((value,index,array)=>value&&array.indexOf(value)===index),rates:{...store.rates,[milkType+'_rate']:rate}};
    const profileSaved=await persist(next);
+   setBuyersDraft(next.buyers);
+   setRatesDraft(next.rates);
    setForm(configuredMilkForm(next.settings,next.rates));
    const feedback=getMilkSaveFeedback(profileSaved);
    if(profileSaved)success(navigator.onLine?'प्रविष्टि स्थानीय रूप से सुरक्षित; सर्वर से समन्वय जारी है।':'प्रविष्टि स्थानीय रूप से सुरक्षित; इंटरनेट उपलब्ध होने पर समन्वय होगा।');else report(feedback.message);
@@ -404,8 +451,12 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
    const record={date:txForm.date,kind:txForm.kind,kindLabel:catalogueLabel(store.settings.catalogues.transactionKinds,txForm.kind),kindEffect:transactionEffect,amount,party:txForm.party.trim(),category:transactionEffect==='expense'?txForm.category:'',categoryLabel:catalogueLabel(store.settings.catalogues.expenseCategories,txForm.category),remarks:txForm.remarks.trim(),createdAt:serverTimestamp()};
    const ref=doc(collection(db,'users',user.uid,'transactions'));
    const transactionWrite=setDoc(ref,record);trackWrite(transactionWrite,err=>{setStore(current=>({...current,transactions:current.transactions.filter(item=>item.id!==ref.id)}));report(err)});
-   setStore(current=>({...current,transactions:[...current.transactions,{id:ref.id,...record,created_at:new Date().toISOString()}]}));
-   setTxForm(configuredTransactionForm(store.settings));success(navigator.onLine?'लेन-देन स्थानीय रूप से सुरक्षित; सर्वर से समन्वय जारी है।':'लेन-देन स्थानीय रूप से सुरक्षित; इंटरनेट उपलब्ध होने पर समन्वय होगा।');
+   const row={id:ref.id,...record,created_at:new Date().toISOString()};
+   const next={...store,transactions:[...store.transactions,row],settings:withTransactionParties(store.settings,[txForm.party])};
+   const profileSaved=persist(next,settingsReady);
+   setTxForm(configuredTransactionForm(next.settings));
+   if(!profileSaved){report('लेन-देन स्थानीय रूप से जोड़ा गया, लेकिन खाता प्रोफ़ाइल में पार्टी-सूची सुरक्षित नहीं हो सकी।');return}
+   success(navigator.onLine?'लेन-देन स्थानीय रूप से सुरक्षित; सर्वर से समन्वय जारी है।':'लेन-देन स्थानीय रूप से सुरक्षित; इंटरनेट उपलब्ध होने पर समन्वय होगा।');
   }catch(err){report(err)}
  }
  function exportCsv(){
@@ -473,7 +524,7 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
    <label className="setting-check"><input type="checkbox" checked={settingsDraft.quickEntryEnabled} onChange={e=>setSettingsDraft({...settingsDraft,quickEntryEnabled:e.target.checked})}/> त्वरित प्रविष्टि प्रोफ़ाइल सक्षम करें</label>
    {settingsDraft.quickEntryEnabled&&<>
     <label>प्रोफ़ाइल का नाम<input className="full-text" maxLength="50" value={settingsDraft.quickEntryLabel} onChange={e=>setSettingsDraft({...settingsDraft,quickEntryLabel:e.target.value})} placeholder="उदाहरण: सुबह की सप्लाई"/></label>
-    <label>निश्चित सप्लायर / दूधवाला<input className="full-text" maxLength="80" value={settingsDraft.defaultMilkman} onChange={e=>setSettingsDraft({...settingsDraft,defaultMilkman:e.target.value})} placeholder="नाम दर्ज करें" required/></label>
+    <label>निश्चित सप्लायर / दूधवाला<input className="full-text" list="milk-supplier-options" maxLength="80" value={settingsDraft.defaultMilkman} onChange={e=>setSettingsDraft({...settingsDraft,defaultMilkman:e.target.value})} placeholder="नाम दर्ज करें" required/></label>
     <label>डिफ़ॉल्ट दूध का प्रकार<RadioChoices name="quick-profile-milk-type" value={settingsDraft.defaultMilkType} onChange={v=>setSettingsDraft({...settingsDraft,defaultMilkType:v})} options={settingsDraft.catalogues.milkTypes.filter(item=>item.active)}/></label>
     <label>डिफ़ॉल्ट दर ({currencySymbol}/लीटर)<input className="number-input" type="number" min=".01" step=".01" inputMode="decimal" value={settingsDraft.defaultRate} onChange={e=>setSettingsDraft({...settingsDraft,defaultRate:e.target.value})} placeholder="उदाहरण: 70" required/></label>
     <label className="setting-check"><input type="checkbox" checked={settingsDraft.lockDefaultRate} onChange={e=>setSettingsDraft({...settingsDraft,lockDefaultRate:e.target.checked})}/> प्रविष्टि में डिफ़ॉल्ट दर स्थिर रखें</label>
@@ -482,9 +533,11 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
    <div className="catalogue-settings">
     <b>पूर्वनिर्धारित विकल्प</b>
     <small>नाम बदले या विकल्प निष्क्रिय करें। पुराने लेन-देन और दूध प्रविष्टियाँ यथावत रहेंगी।</small>
-    <CatalogueEditor title="दूध के प्रकार" items={settingsDraft.catalogues.milkTypes} onChange={items=>setSettingsDraft({...settingsDraft,catalogues:{...settingsDraft.catalogues,milkTypes:items}})} onAdd={()=>addCatalogueOption('milkTypes')}/>
+    <NameListEditor title="दूधवाले / सप्लायर" items={buyersDraft} onChange={setBuyersDraft}/>
+    <CatalogueEditor title="दूध के प्रकार और प्रति लीटर दर" items={settingsDraft.catalogues.milkTypes} showRates rates={ratesDraft} onRateChange={(key,value)=>setRatesDraft(current=>({...current,[key]:value}))} onChange={items=>setSettingsDraft({...settingsDraft,catalogues:{...settingsDraft.catalogues,milkTypes:items}})} onAdd={()=>addCatalogueOption('milkTypes')}/>
     <CatalogueEditor title="दूध देने का समय" items={settingsDraft.catalogues.shifts} onChange={items=>setSettingsDraft({...settingsDraft,catalogues:{...settingsDraft.catalogues,shifts:items}})} onAdd={()=>addCatalogueOption('shifts')}/>
     <CatalogueEditor title="लेन-देन के प्रकार" items={settingsDraft.catalogues.transactionKinds} showEffects onChange={items=>setSettingsDraft({...settingsDraft,catalogues:{...settingsDraft.catalogues,transactionKinds:items}})} onAdd={()=>addCatalogueOption('transactionKinds')}/>
+    <CatalogueEditor title="लेन-देन पक्ष / पार्टियाँ" items={settingsDraft.catalogues.transactionParties} onChange={items=>setSettingsDraft({...settingsDraft,catalogues:{...settingsDraft.catalogues,transactionParties:items}})} onAdd={()=>addCatalogueOption('transactionParties')}/>
     <CatalogueEditor title="खर्च के मद" items={settingsDraft.catalogues.expenseCategories} onChange={items=>setSettingsDraft({...settingsDraft,catalogues:{...settingsDraft.catalogues,expenseCategories:items}})} onAdd={()=>addCatalogueOption('expenseCategories')}/>
    </div>
    <label>फुटर नोट (वैकल्पिक)<input className="full-text" maxLength="120" value={settingsDraft.footerNote} onChange={e=>setSettingsDraft({...settingsDraft,footerNote:e.target.value})} placeholder="शाखा, संस्था या संपर्क विवरण"/></label>
@@ -520,7 +573,8 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
    {notice&&<p className="notice" role="status">{notice}</p>}
    {tab==='Milk'&&<>
     <form className="entry-form" onSubmit={saveMilk}>
-     <label>दूधवाला (Milkman)<input className="text-input full-text" value={store.settings.quickEntryEnabled?store.settings.defaultMilkman:form.buyer} onChange={e=>setForm({...form,buyer:e.target.value})} placeholder="नाम लिखें" readOnly={store.settings.quickEntryEnabled} required/></label>
+     <label>दूधवाला (Milkman)<input className="text-input full-text" list="milk-supplier-options" value={store.settings.quickEntryEnabled?store.settings.defaultMilkman:form.buyer} onChange={e=>setForm({...form,buyer:e.target.value})} placeholder="नाम लिखें" readOnly={store.settings.quickEntryEnabled} required/></label>
+     <datalist id="milk-supplier-options">{(store.buyers||[]).map(name=><option key={name} value={name}/>)}</datalist>
      <div className="field-pair">
       <label>दिनांक<input className="date-input" type="date" value={form.sale_date} onChange={e=>setForm({...form,sale_date:e.target.value})} required/></label>
       <label>समय<RadioChoices name="milk-shift" value={form.shift} onChange={v=>setForm({...form,shift:v})} options={store.settings.catalogues.shifts.filter(item=>item.active)}/></label>
@@ -553,7 +607,8 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
      <label>दिनांक<input className="date-input" type="date" value={txForm.date} onChange={e=>setTxForm({...txForm,date:e.target.value})} required/></label>
      <label>लेन-देन का प्रकार<RadioChoices name="transaction-kind" value={txForm.kind} onChange={v=>setTxForm({...txForm,kind:v})} options={store.settings.catalogues.transactionKinds.filter(item=>item.active)}/></label>
      <label>राशि ({currencySymbol})<input className="number-input" type="number" min=".01" step=".01" inputMode="decimal" placeholder="0" value={txForm.amount} onChange={e=>setTxForm({...txForm,amount:e.target.value})} required/></label>
-     <label>किससे / किसे (To Whom)<input className="text-input full-text" value={txForm.party} onChange={e=>setTxForm({...txForm,party:e.target.value})} placeholder="व्यक्ति या पार्टी का नाम"/></label>
+     <label>किससे / किसे (To Whom)<input className="text-input full-text" list="transaction-party-options" value={txForm.party} onChange={e=>setTxForm({...txForm,party:e.target.value})} placeholder="व्यक्ति या पार्टी का नाम"/></label>
+     <datalist id="transaction-party-options">{store.settings.catalogues.transactionParties.filter(item=>item.active).map(item=><option key={item.value} value={item.label}/>)}</datalist>
      {(store.settings.catalogues.transactionKinds.find(item=>item.value===txForm.kind)?.effect||txForm.kind)==='expense'&&<label>खर्च का मद<RadioChoices name="expense-category" value={txForm.category} onChange={v=>setTxForm({...txForm,category:v})} options={store.settings.catalogues.expenseCategories.filter(item=>item.active)}/></label>}
      <label>टिप्पणी<textarea className="comment-input" rows="2" value={txForm.remarks} onChange={e=>setTxForm({...txForm,remarks:e.target.value})} placeholder="वैकल्पिक टिप्पणी"/></label>
      <p className="append-note">हर लेन-देन नई प्रविष्टि है। इसे बदला नहीं जा सकता; आवश्यकता होने पर हटाया जा सकता है।</p>
