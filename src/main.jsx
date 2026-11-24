@@ -11,7 +11,7 @@ import{isFirebaseConfigured,auth,googleProvider,db}from'./firebase';
 import{onAuthStateChanged,signInWithPopup,signInAnonymously,linkWithPopup,signOut}from'firebase/auth';
 import{normalizeMilkRecord,normalizeTransactionRecord,planRestoreMerge}from'./restore-merge';
 import{collection,doc,setDoc,addDoc,deleteDoc,getDocFromCache,getDocFromServer,getDocsFromCache,getDocsFromServer,query,where,orderBy,serverTimestamp,waitForPendingWrites}from'firebase/firestore';
-import{DEFAULT_SETTINGS,normalizeSettings,SUPPORTED_CURRENCIES}from'./app-settings';
+import{DEFAULT_SETTINGS,normalizeSettings,SUPPORTED_CURRENCIES,hasCachedAccountProfile}from'./app-settings';
 import{ensureMilkSupplier,mergeMilkSuppliers,getMilkSupplierDefaultRate}from'./catalogues';
 import{getTransactionEffect,summarizeTransactions}from'./accounting';
 import{createCsv}from'./csv-export';
@@ -132,13 +132,14 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
     const nextBuyers=Array.isArray(profile.buyers)?profile.buyers:[];
     const nextSettings=mergeMilkSuppliers(
      withTransactionParties(normalizeSettings(profile.settings||{},profile.rates||{}),cachedTransactions.map(item=>item.party)),
-     [...nextBuyers,...cachedRows.map(item=>item.buyer),nextSettings.defaultMilkman]
+     [...nextBuyers,...cachedRows.map(item=>item.buyer),nextSettings.defaultMilkman],
+     profile.supplierDefaults||[]
     );
     const next={...DEFAULT_STATE,...profile,rows:cachedRows,transactions:cachedTransactions,rates:nextRates,settings:nextSettings,buyers:nextBuyers};
     setStore(next);
     setSettingsDraft(next.settings);
     setRatesDraft(next.rates);
-    setSettingsReady(Boolean(profileSnap));
+    setSettingsReady(hasCachedAccountProfile(profileSnap));
     setForm(configuredMilkForm(next.settings,next.rates));
     setTxForm(configuredTransactionForm(next.settings));
     setProfileReady(true);
@@ -186,7 +187,8 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
    const nextRows=[...milkById.values()];
    const nextSettings=mergeMilkSuppliers(
     withTransactionParties(normalizeSettings(profile.settings||{},profile.rates||{}),nextTransactions.map(item=>item.party)),
-    [...nextBuyers,...nextRows.map(item=>item.buyer),nextSettings.defaultMilkman]
+    [...nextBuyers,...nextRows.map(item=>item.buyer),nextSettings.defaultMilkman],
+    profile.supplierDefaults||[]
    );
    const next={...DEFAULT_STATE,...profile,rows:nextRows,transactions:nextTransactions,rates:nextRates,settings:nextSettings,buyers:nextBuyers};
    setStore(next);setSettingsDraft(next.settings);setRatesDraft(next.rates);setForm(configuredMilkForm(next.settings,next.rates));setTxForm(configuredTransactionForm(next.settings));
@@ -391,6 +393,7 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
    ...milkExisting.map(item=>item.milkman),
    ...backup.rows.map(item=>item.milkman),
    mergedSettings.defaultMilkman,
+  ],remoteProfile.supplierDefaults||[]
   ]);
   const nextBuyers=restoredSettings.catalogues.milkSuppliers.filter(item=>item.active).map(item=>item.label);
   const restoredProfile={...restoreBase,rates:mergedRates,buyers:nextBuyers,settings:restoredSettings};
