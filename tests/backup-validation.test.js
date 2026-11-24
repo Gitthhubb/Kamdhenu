@@ -188,3 +188,47 @@ test('restores custom catalogue values and preserves historical display labels',
   assert.equal(result.transactions[0].kindEffect, 'expense');
   assert.equal(result.transactions[0].categoryLabel, 'खनिज मिश्रण');
 });
+
+test('preserves supplier names and their individual default rates in backups', () => {
+  const backup = validBackup({
+    buyers: ['राम डेयरी', 'श्याम डेयरी'],
+    settings: {
+      catalogues: {
+        milkSuppliers: [
+          { value: 'supplier_ram', label: 'राम डेयरी', defaultRate: '72.50', active: true },
+          { value: 'supplier_shyam', label: 'श्याम डेयरी', defaultRate: 68, active: true },
+        ],
+      },
+    },
+  });
+  const result = validateBackupPayload(backup);
+  assert.deepEqual(result.settings.catalogues.milkSuppliers, [
+    { value: 'supplier_ram', label: 'राम डेयरी', defaultRate: '72.5', active: true },
+    { value: 'supplier_shyam', label: 'श्याम डेयरी', defaultRate: '68', active: true },
+  ]);
+});
+
+test('rejects invalid supplier default rates and duplicate supplier names in backups', () => {
+  const badRate = validBackup({
+    settings: {
+      catalogues: {
+        milkSuppliers: [
+          { value: 'supplier_ram', label: 'राम डेयरी', defaultRate: '-10', active: true },
+        ],
+      },
+    },
+  });
+  assert.throws(() => validateBackupPayload(badRate), /डिफ़ॉल्ट दर शून्य या उससे अधिक वैध संख्या/);
+
+  const duplicateName = validBackup({
+    settings: {
+      catalogues: {
+        milkSuppliers: [
+          { value: 'supplier_ram', label: 'राम डेयरी', defaultRate: '70', active: true },
+          { value: 'supplier_ram_2', label: 'राम डेयरी', defaultRate: '72', active: true },
+        ],
+      },
+    },
+  });
+  assert.throws(() => validateBackupPayload(duplicateName), /कुंजी या नाम दोहराया गया है/);
+});

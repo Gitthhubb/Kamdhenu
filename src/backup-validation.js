@@ -3,10 +3,7 @@ import {
   normalizeTransactionRecord,
 } from './restore-merge.js';
 import { normalizeSettings, SUPPORTED_CURRENCIES } from './app-settings.js';
-
-const VALID_SHIFTS = new Set(['morning', 'evening']);
-const VALID_MILK_TYPES = new Set(['cow', 'buffalo']);
-const VALID_TRANSACTION_KINDS = new Set(['received', 'remained', 'advance', 'expense']);
+import { DEFAULT_CATALOGUES } from './catalogues.js';
 
 function isObject(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -108,9 +105,67 @@ function validateBuyers(value) {
   return [...new Set(value.map(item => item.trim()).filter(Boolean))];
 }
 
+function validateCatalogues(value) {
+  if (value === undefined) return;
+  if (!isObject(value)) fail('बैकअप की सेटिंग्स: विकल्प-सूचियाँ सही प्रारूप में नहीं हैं।');
+
+  for (const catalogueKey of Object.keys(DEFAULT_CATALOGUES)) {
+    const items = value[catalogueKey];
+    if (items === undefined) continue;
+    if (!Array.isArray(items) || items.length > 40) {
+      fail(`बैकअप की सेटिंग्स: ${catalogueKey} में अधिकतम 40 विकल्पों की सूची आवश्यक है।`);
+    }
+    const keys = new Set();
+    const labels = new Set();
+    for (const [index, item] of items.entries()) {
+      const label = `बैकअप की सेटिंग्स: ${catalogueKey} विकल्प ${index + 1}`;
+      if (!isObject(item)
+        || typeof item.value !== 'string'
+        || !/^[a-z0-9][a-z0-9_-]{0,39}$/.test(item.value)
+        || typeof item.label !== 'string'
+        || !item.label.trim()
+        || item.label.trim().length > 60) {
+        fail(`${label} का नाम या स्थिर कुंजी मान्य नहीं है।`);
+      }
+      const normalisedLabel = item.label.trim().toLocaleLowerCase();
+      if (keys.has(item.value) || labels.has(normalisedLabel)) {
+        fail(`${label} की कुंजी या नाम दोहराया गया है।`);
+      }
+      keys.add(item.value);
+      labels.add(normalisedLabel);
+      if (item.active !== undefined && typeof item.active !== 'boolean') {
+        fail(`${label} की सक्रिय स्थिति मान्य नहीं है।`);
+      }
+      if (catalogueKey === 'milkSuppliers') {
+        const rate = item.defaultRate ?? '';
+        if (typeof rate !== 'string' && typeof rate !== 'number') {
+          fail(`${label} की डिफ़ॉल्ट दर सही प्रारूप में नहीं है।`);
+        }
+        if (rate !== '') {
+          const parsedRate = finiteNumber(rate);
+          if (!Number.isFinite(parsedRate) || parsedRate < 0) {
+            fail(`${label} की डिफ़ॉल्ट दर शून्य या उससे अधिक वैध संख्या होनी चाहिए।`);
+          }
+        }
+      }
+      if (catalogueKey === 'transactionKinds'
+        && item.effect !== undefined
+        && !['received', 'remained', 'advance', 'expense'].includes(item.effect)) {
+        fail(`${label} का लेखा प्रभाव मान्य नहीं है।`);
+      }
+      if (item.historicalLabel !== undefined
+        && (typeof item.historicalLabel !== 'string' || item.historicalLabel.length > 60)) {
+        fail(`${label} का ऐतिहासिक नाम मान्य नहीं है।`);
+      }
+    }
+  }
+}
+
 function validateSettings(value) {
   if (value === undefined) return normalizeSettings();
   if (!isObject(value)) fail('बैकअप की सेटिंग्स सही प्रारूप में नहीं हैं।');
+
+  validateCatalogues(value.catalogues);
 
   for (const field of ['quickEntryEnabled', 'lockDefaultRate', 'personalMode']) {
     if (value[field] !== undefined && typeof value[field] !== 'boolean') {

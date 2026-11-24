@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { DEFAULT_CATALOGUES, normalizeCatalogues } from '../src/catalogues.js';
+import { DEFAULT_CATALOGUES, normalizeCatalogues, mergeMilkSuppliers, ensureMilkSupplier, getMilkSupplierDefaultRate } from '../src/catalogues.js';
 
 test('provides reusable defaults for every fixed-entry catalogue', () => {
   const result = normalizeCatalogues();
@@ -62,4 +62,73 @@ test('assigns accounting effects to transaction kinds and preserves custom effec
   });
   assert.equal(result.transactionKinds.find(item => item.value === 'rent').effect, 'expense');
   assert.equal(result.transactionKinds.find(item => item.value === 'bad_effect').effect, 'received');
+});
+
+test('normalises supplier-specific default rates and preserves inactive suppliers', () => {
+  const result = normalizeCatalogues({
+    milkSuppliers: [
+      { value: 'supplier_ram', label: 'राम डेयरी', defaultRate: '72.50', active: true },
+      { value: 'supplier_shyam', label: 'श्याम डेयरी', defaultRate: '', active: false },
+    ],
+  });
+  assert.deepEqual(result.milkSuppliers, [
+    { value: 'supplier_ram', label: 'राम डेयरी', defaultRate: '72.5', active: true },
+    { value: 'supplier_shyam', label: 'श्याम डेयरी', defaultRate: '', active: false },
+  ]);
+});
+
+test('migrates legacy milkman names into supplier options without inventing rates', () => {
+  const settings = { catalogues: normalizeCatalogues() };
+  const result = mergeMilkSuppliers(settings, [' राम डेयरी ', 'राम डेयरी', 'श्याम डेयरी']);
+  assert.equal(result.catalogues.milkSuppliers.length, 2);
+  assert.deepEqual(result.catalogues.milkSuppliers.map(item => item.label), ['राम डेयरी', 'श्याम डेयरी']);
+  assert.deepEqual(result.catalogues.milkSuppliers.map(item => item.defaultRate), ['', '']);
+});
+
+test('assigns the first recorded rate to a new supplier and does not overwrite a configured rate', () => {
+  const settings = { catalogues: normalizeCatalogues() };
+  const first = ensureMilkSupplier(settings, 'राम डेयरी', 72.5);
+  assert.equal(getMilkSupplierDefaultRate(first, 'राम डेयरी'), '72.5');
+  const second = ensureMilkSupplier(first, 'राम डेयरी', 80);
+  assert.equal(getMilkSupplierDefaultRate(second, 'राम डेयरी'), '72.5');
+  const inactive = {
+    ...second,
+    catalogues: {
+      ...second.catalogues,
+      milkSuppliers: second.catalogues.milkSuppliers.map(item => ({ ...item, active: false })),
+    },
+  };
+  assert.equal(getMilkSupplierDefaultRate(inactive, 'राम डेयरी'), '');
+});
+
+test('merges queued supplier defaults without replacing a configured catalogue', () => {
+  const local = {
+    catalogues: normalizeCatalogues({
+      milkSuppliers: [
+        { value: 'supplier_ram', label: 'राम डेयरी', defaultRate: '', active: true },
+      ],
+    }),
+  };
+  const result = mergeMilkSuppliers(local, [], [
+    { value: 'supplier_ram', label: 'राम डेयरी', defaultRate: '72.5', active: true },
+    { value: 'supplier_shyam', label: 'श्याम डेयरी', defaultRate: '68', active: true },
+  ]);
+  assert.deepEqual(result.catalogues.milkSuppliers, [
+    { value: 'supplier_ram', label: 'राम डेयरी', defaultRate: '72.5', active: true },
+    { value: 'supplier_shyam', label: 'श्याम डेयरी', defaultRate: '68', active: true },
+  ]);
+});
+
+test('keeps a deliberately configured supplier rate ahead of a queued profile copy', () => {
+  const local = {
+    catalogues: normalizeCatalogues({
+      milkSuppliers: [
+        { value: 'supplier_ram', label: 'राम डेयरी', defaultRate: '75', active: true },
+      ],
+    }),
+  };
+  const result = mergeMilkSuppliers(local, [], [
+    { value: 'supplier_ram', label: 'राम डेयरी', defaultRate: '72', active: true },
+  ]);
+  assert.equal(result.catalogues.milkSuppliers[0].defaultRate, '75');
 });

@@ -4,38 +4,65 @@ service cloud.firestore {
     function signedIn() {
       return request.auth != null;
     }
+
+    function validCatalogueKey(value) {
+      return value is string
+        && value.size() > 0
+        && value.size() <= 40
+        && value.matches('^[a-z0-9][a-z0-9_-]{0,39}$');
+    }
+
+    function validOptionalLabel(data, field) {
+      return !data.keys().hasAny([field])
+        || (data[field] is string && data[field].size() <= 60);
+    }
+
     function validEntry(data) {
       return data.keys().hasOnly([
-        'date', 'shift', 'milkman', 'milkType', 'quantity', 'rate',
-        'amount', 'remarks', 'createdAt'
+        'date', 'shift', 'shiftLabel', 'milkman', 'milkType', 'milkTypeLabel',
+        'quantity', 'rate', 'amount', 'remarks', 'createdAt'
       ])
       && data.date is string
-      && data.shift in ['morning', 'evening']
-      && data.milkman is string
-      && data.milkType in ['cow', 'buffalo']
+      && validCatalogueKey(data.shift)
+      && validOptionalLabel(data, 'shiftLabel')
+      && data.milkman is string && data.milkman.size() > 0 && data.milkman.size() <= 80
+      && validCatalogueKey(data.milkType)
+      && validOptionalLabel(data, 'milkTypeLabel')
       && data.quantity is number && data.quantity > 0
       && data.rate is number && data.rate >= 0
       && data.amount is number && data.amount >= 0
-      && data.remarks is string;
+      && data.remarks is string
+      && data.createdAt is timestamp;
     }
+
     function validTransaction(data) {
       return data.keys().hasOnly([
-        'date', 'kind', 'amount', 'party', 'category', 'remarks', 'createdAt'
+        'date', 'kind', 'kindLabel', 'kindEffect', 'amount',
+        'party', 'category', 'categoryLabel', 'remarks', 'createdAt'
       ])
       && data.date is string
-      && data.kind in ['received', 'remained', 'advance', 'expense']
+      && validCatalogueKey(data.kind)
+      && validOptionalLabel(data, 'kindLabel')
+      && (!data.keys().hasAny(['kindEffect'])
+        || data.kindEffect in ['received', 'remained', 'advance', 'expense'])
       && data.amount is number && data.amount > 0
-      && data.party is string && data.category is string
-      && data.remarks is string;
+      && data.party is string && data.party.size() <= 80
+      && (data.category == '' || validCatalogueKey(data.category))
+      && validOptionalLabel(data, 'categoryLabel')
+      && data.remarks is string
+      && data.createdAt is timestamp;
     }
+
     match /users/{userId} {
       allow read, create, update, delete: if signedIn() && request.auth.uid == userId;
+
       match /milk/{entryId} {
         allow read: if signedIn() && request.auth.uid == userId;
         allow create: if signedIn() && request.auth.uid == userId && validEntry(request.resource.data);
         allow delete: if signedIn() && request.auth.uid == userId;
         allow update: if false;
       }
+
       match /transactions/{entryId} {
         allow read: if signedIn() && request.auth.uid == userId;
         allow create: if signedIn() && request.auth.uid == userId && validTransaction(request.resource.data);
