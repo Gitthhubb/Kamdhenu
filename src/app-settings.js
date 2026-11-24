@@ -68,3 +68,7 @@ export function normalizeSettings(value, rates = {}) {
     catalogues,
   };
 }
+
+export function hasCachedAccountProfile(snapshot) {
+  return Boolean(snapshot && typeof snapshot.exists === 'function' && snapshot.exists());
+}
