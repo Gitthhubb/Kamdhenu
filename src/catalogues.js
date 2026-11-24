@@ -79,8 +79,31 @@ function catalogueValue(prefix, label, items) {
   return candidate;
 }
 
-export function mergeMilkSuppliers(settings, names = []) {
+export function mergeMilkSuppliers(settings, names = [], savedOptions = []) {
   const items = [...(settings.catalogues.milkSuppliers || [])];
+  for (const option of savedOptions) {
+    const label = String(option?.label || '').trim().slice(0, 60);
+    const value = typeof option?.value === 'string' && /^[a-z0-9][a-z0-9_-]{0,39}$/.test(option.value)
+      ? option.value
+      : '';
+    if (!label || !value) continue;
+    const existing = items.find(item => item.value === value || item.label.toLocaleLowerCase() === label.toLocaleLowerCase());
+    if (existing) {
+      if (existing.defaultRate === '' && option.defaultRate !== '' && option.defaultRate !== undefined) {
+        const parsedRate = Number(option.defaultRate);
+        if (Number.isFinite(parsedRate) && parsedRate >= 0) existing.defaultRate = String(parsedRate);
+      }
+      continue;
+    }
+    if (items.length >= 40) break;
+    const parsedRate = option.defaultRate === '' || option.defaultRate === undefined ? NaN : Number(option.defaultRate);
+    items.push({
+      value,
+      label,
+      defaultRate: Number.isFinite(parsedRate) && parsedRate >= 0 ? String(parsedRate) : '',
+      active: option.active !== false,
+    });
+  }
   for (const raw of names) {
     const label = String(raw || '').trim().slice(0, 60);
     if (!label || items.some(item => item.label.toLocaleLowerCase() === label.toLocaleLowerCase())) continue;
