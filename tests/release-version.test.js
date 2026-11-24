@@ -12,7 +12,7 @@ test('package metadata identifies the stable 2.0.0 release', async () => {
 test('production UI no longer describes the app as an unreleased testing build', async () => {
   const source = await read('../src/main.jsx');
   assert.doesNotMatch(source, /परीक्षण संस्करण/);
-  assert.match(source, /संस्करण 2\\.0\\.0/);
+  assert.match(source, /संस्करण 2\.0\.0/);
 });
 
 test('release PWA cache is bumped and stale cache identifiers are absent', async () => {
