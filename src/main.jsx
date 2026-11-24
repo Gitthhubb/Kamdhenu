@@ -204,6 +204,15 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
  async function saveAccountSettings(e){
   e.preventDefault();
   if(!settingsReady)return report('सेटिंग्स बदलने से पहले Sync Now चलाकर सर्वर प्रोफ़ाइल प्राप्त करें।');
+  const rawCatalogues=settingsDraft.catalogues||{};
+  for(const [field,items] of Object.entries(rawCatalogues)){
+   const labels=items.map(item=>String(item.label||'').trim().toLocaleLowerCase());
+   if(labels.some(label=>!label))return report('प्रत्येक पूर्वनिर्धारित विकल्प का नाम रिक्त नहीं हो सकता।');
+   if(new Set(labels).size!==labels.length)return report('एक ही सूची में विकल्पों के नाम दोहराए नहीं जा सकते।');
+  }
+  if(buyersDraft.some(name=>!String(name||'').trim()))return report('दूधवाले / सप्लायर का नाम रिक्त नहीं हो सकता।');
+  const buyerKeys=buyersDraft.map(name=>String(name).trim().toLocaleLowerCase());
+  if(new Set(buyerKeys).size!==buyerKeys.length)return report('दूधवाले / सप्लायर के नाम दोहराए नहीं जा सकते।');
   const settings=normalizeSettings(settingsDraft,ratesDraft);
   const nextRates={...ratesDraft};
   for(const item of settings.catalogues.milkTypes){
@@ -533,6 +542,7 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
    <div><b>लेजर प्रोफ़ाइल और सेटिंग्स</b><small>{store.settings.quickEntryEnabled?store.settings.quickEntryLabel+' · '+store.settings.defaultMilkman:'सामान्य प्रविष्टि · '+store.settings.currency}</small></div>
    <button type="button" className="mode-settings" aria-expanded={settingsOpen} disabled={!settingsReady} onClick={()=>setSettingsOpen(v=>!v)}>{settingsOpen?'बंद करें':'कॉन्फ़िगर करें'}</button>
   </section>
+  {!settingsReady&&<p className="config-hint">इस डिवाइस पर खाता प्रोफ़ाइल उपलब्ध नहीं है। कॉन्फ़िगरेशन खोलने से पहले ऊपर <b>अभी सिंक करें</b> चलाएँ।</p>}
   {settingsOpen&&<form className="account-settings-panel" onSubmit={saveAccountSettings}>
    <b>लेजर और खाता सेटिंग्स</b>
    <label>लेजर / व्यवसाय का नाम<input className="text-input full-text" maxLength="60" value={settingsDraft.ledgerName} onChange={e=>setSettingsDraft({...settingsDraft,ledgerName:e.target.value})} placeholder="उदाहरण: शिव डेयरी" required/></label>
