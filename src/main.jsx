@@ -22,7 +22,8 @@ const shiftLabel=(k,catalogues)=>catalogueLabel(catalogues?.shifts,k,k==='mornin
 const DEFAULT_STATE={rows:[],transactions:[],rates:{cow_rate:0,buffalo_rate:0},buyers:[],settings:{...DEFAULT_SETTINGS}};
 const blankForm=(rates=null)=>({sale_date:today(),shift:'morning',buyer:'',milk_type:'cow',quantity:'',rate:rates?String(rates.cow_rate??0):'',remarks:''});
 const configuredMilkForm=(settings,rates)=>{
- const base={...blankForm(rates),shift:settings.catalogues.shifts.find(item=>item.active)?.value||'morning',milk_type:settings.catalogues.milkTypes.find(item=>item.active)?.value||'cow'};
+ const milkType=settings.catalogues.milkTypes.find(item=>item.active)?.value||'cow';
+ const base={...blankForm(rates),shift:settings.catalogues.shifts.find(item=>item.active)?.value||'morning',milk_type:milkType,rate:String(rates?.[milkType+'_rate']??0)};
  return settings.quickEntryEnabled?{...base,buyer:settings.defaultMilkman,milk_type:settings.defaultMilkType,rate:String(settings.defaultRate||rates[settings.defaultMilkType+'_rate']||'')}:base;
 };
 const configuredTransactionForm=settings=>({...blankTransaction(),kind:settings.catalogues.transactionKinds.find(item=>item.active)?.value||'received',category:settings.catalogues.expenseCategories.find(item=>item.active)?.value||'others'});
@@ -454,6 +455,7 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
    const row={id:ref.id,...record,created_at:new Date().toISOString()};
    const next={...store,transactions:[...store.transactions,row],settings:withTransactionParties(store.settings,[txForm.party])};
    const profileSaved=persist(next,settingsReady);
+   if(settingsReady)setSettingsDraft(next.settings);
    setTxForm(configuredTransactionForm(next.settings));
    if(!profileSaved){report('लेन-देन स्थानीय रूप से जोड़ा गया, लेकिन खाता प्रोफ़ाइल में पार्टी-सूची सुरक्षित नहीं हो सकी।');return}
    success(navigator.onLine?'लेन-देन स्थानीय रूप से सुरक्षित; सर्वर से समन्वय जारी है।':'लेन-देन स्थानीय रूप से सुरक्षित; इंटरनेट उपलब्ध होने पर समन्वय होगा।');
