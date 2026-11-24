@@ -35,16 +35,16 @@ function fail(message) {
   throw new Error(message);
 }
 
-function validateMilkRows(rows) {
+function validateMilkRows(rows, catalogues) {
   return rows.map((row, index) => {
     const label = `दूध प्रविष्टि ${index + 1}`;
     if (!isObject(row)) fail(`${label}: रिकॉर्ड का प्रारूप गलत है।`);
 
     const record = normalizeMilkRecord(row);
     if (!validDate(record.date)) fail(`${label}: वैध YYYY-MM-DD दिनांक दर्ज नहीं है।`);
-    if (!VALID_SHIFTS.has(record.shift)) fail(`${label}: समय सुबह या शाम होना चाहिए।`);
+    if (!catalogues.shifts.some(item => item.value === record.shift)) fail(`${label}: समय की प्रविष्टि खाता कॉन्फ़िगरेशन में मान्य नहीं है।`);
     if (!record.milkman.trim()) fail(`${label}: दूधवाले का नाम रिक्त है।`);
-    if (!VALID_MILK_TYPES.has(record.milkType)) fail(`${label}: दूध का प्रकार गाय या भैंस होना चाहिए।`);
+    if (!catalogues.milkTypes.some(item => item.value === record.milkType)) fail(`${label}: दूध का प्रकार खाता कॉन्फ़िगरेशन में मान्य नहीं है।`);
 
     const quantity = finiteNumber(row.quantity);
     const rate = finiteNumber(row.rate);
@@ -63,14 +63,18 @@ function validateMilkRows(rows) {
   });
 }
 
-function validateTransactions(rows) {
+function validateTransactions(rows, catalogues) {
   return rows.map((row, index) => {
     const label = `लेन-देन ${index + 1}`;
     if (!isObject(row)) fail(`${label}: रिकॉर्ड का प्रारूप गलत है।`);
 
     const record = normalizeTransactionRecord(row);
     if (!validDate(record.date)) fail(`${label}: वैध YYYY-MM-DD दिनांक दर्ज नहीं है।`);
-    if (!VALID_TRANSACTION_KINDS.has(record.kind)) fail(`${label}: प्रकार मान्य नहीं है।`);
+    const configuredKind = catalogues.transactionKinds.find(item => item.value === record.kind);
+    if (!configuredKind) fail(`${label}: प्रकार खाता कॉन्फ़िगरेशन में मान्य नहीं है।`);
+    const effect = record.kindEffect || configuredKind.effect || record.kind;
+    if (!['received', 'remained', 'advance', 'expense'].includes(effect)) fail(`${label}: लेखा प्रभाव मान्य नहीं है।`);
+    if (effect === 'expense' && !catalogues.expenseCategories.some(item => item.value === record.category)) fail(`${label}: खर्च का मद खाता कॉन्फ़िगरेशन में मान्य नहीं है।`);
 
     const amount = finiteNumber(row.amount);
     if (!Number.isFinite(amount) || amount <= 0) fail(`${label}: राशि शून्य से अधिक वैध संख्या होनी चाहिए।`);
@@ -83,10 +87,10 @@ function validateTransactions(rows) {
   });
 }
 
-function validateRates(value) {
+function validateRates(value, catalogues) {
   if (!isObject(value)) fail('बैकअप की दरें सही प्रारूप में नहीं हैं।');
   const rates = {};
-  for (const key of ['cow_rate', 'buffalo_rate']) {
+  for (const key of catalogues.milkTypes.map(item => item.value + '_rate')) {
     const rate = finiteNumber(value[key] ?? 0);
     if (!Number.isFinite(rate) || rate < 0) {
       fail(`बैकअप की दरें: ${key} शून्य या उससे अधिक वैध संख्या होनी चाहिए।`);
@@ -128,7 +132,7 @@ function validateSettings(value) {
   if (value.currency !== undefined && !SUPPORTED_CURRENCIES.includes(value.currency)) {
     fail('बैकअप की सेटिंग्स: मुद्रा समर्थित नहीं है।');
   }
-  if (value.defaultMilkType !== undefined && !VALID_MILK_TYPES.has(value.defaultMilkType)) {
+  if (value.defaultMilkType !== undefined && typeof value.defaultMilkType !== 'string') {
     fail('बैकअप की सेटिंग्स: डिफ़ॉल्ट दूध का प्रकार मान्य नहीं है।');
   }
 
@@ -149,6 +153,9 @@ function validateSettings(value) {
     && (!settings.defaultMilkman.trim() || !defaultRate || finiteNumber(defaultRate) <= 0)) {
     fail('बैकअप की सेटिंग्स: त्वरित प्रविष्टि प्रोफ़ाइल चालू करने के लिए दूधवाले का नाम और शून्य से अधिक डिफ़ॉल्ट दर आवश्यक है।');
   }
+  if (!settings.catalogues.milkTypes.some(item => item.value === settings.defaultMilkType)) {
+    fail('बैकअप की सेटिंग्स: डिफ़ॉल्ट दूध का प्रकार कैटलॉग में उपलब्ध नहीं है।');
+  }
 
   return { ...settings, defaultRate };
 }
@@ -168,11 +175,12 @@ export function validateBackupPayload(payload) {
     fail('बैकअप की दरें सही प्रारूप में नहीं हैं।');
   }
 
+  const settings = validateSettings(payload.settings);
   return {
-    rows: validateMilkRows(payload.rows),
-    transactions: validateTransactions(payload.transactions),
-    rates: validateRates(payload.rates),
+    rows: validateMilkRows(payload.rows, settings.catalogues),
+    transactions: validateTransactions(payload.transactions, settings.catalogues),
+    rates: validateRates(payload.rates, settings.catalogues),
     buyers: validateBuyers(payload.buyers),
-    settings: validateSettings(payload.settings),
+    settings,
   };
 }

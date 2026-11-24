@@ -1,3 +1,4 @@
+import { normalizeCatalogues } from '../src/catalogues.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { validateBackupPayload } from '../src/backup-validation.js';
@@ -65,6 +66,7 @@ test('normalises a valid backup while preserving source document IDs', () => {
       defaultMilkType: 'buffalo',
       defaultRate: '',
       lockDefaultRate: true,
+      catalogues: normalizeCatalogues(),
     },
   });
 });
@@ -124,6 +126,7 @@ test('migrates legacy one-person backups into a generic quick-entry profile', ()
     defaultMilkType: 'buffalo',
     defaultRate: '70',
     lockDefaultRate: true,
+    catalogues: normalizeCatalogues(),
   });
 });
 
@@ -152,4 +155,36 @@ test('rejects an enabled quick-entry profile without its required supplier and r
     settings: { quickEntryEnabled: true, defaultMilkman: '', defaultRate: '' },
   });
   assert.throws(() => validateBackupPayload(backup), /त्वरित प्रविष्टि प्रोफ़ाइल चालू करने/);
+});
+
+test('restores custom catalogue values and preserves historical display labels', () => {
+  const backup = validBackup({
+    rows: [{
+      id: 'milk-custom', date: '2026-11-12', shift: 'night', shiftLabel: 'रात्रि',
+      milkman: 'सीमा', milkType: 'goat', milkTypeLabel: 'बकरी',
+      quantity: 1, rate: 80, amount: 80, remarks: '',
+    }],
+    transactions: [{
+      id: 'tx-custom', date: '2026-11-12', kind: 'feed_credit', kindLabel: 'चारा उधार', kindEffect: 'expense',
+      amount: 100, party: 'दुकान', category: 'mineral_mix', categoryLabel: 'खनिज मिश्रण', remarks: '',
+    }],
+    rates: { cow_rate: 60, buffalo_rate: 70, goat_rate: 80 },
+    settings: {
+      defaultMilkType: 'goat',
+      catalogues: {
+        milkTypes: [{ value: 'goat', label: 'बकरी', active: true }],
+        shifts: [{ value: 'night', label: 'रात्रि', active: true }],
+        transactionKinds: [{ value: 'feed_credit', label: 'चारा उधार', active: true }],
+        expenseCategories: [{ value: 'mineral_mix', label: 'खनिज मिश्रण', active: true }],
+      },
+    },
+  });
+  const result = validateBackupPayload(backup);
+  assert.equal(result.rates.goat_rate, 80);
+  assert.equal(result.rows[0].milkType, 'goat');
+  assert.equal(result.rows[0].milkTypeLabel, 'बकरी');
+  assert.equal(result.rows[0].shiftLabel, 'रात्रि');
+  assert.equal(result.transactions[0].kind, 'feed_credit');
+  assert.equal(result.transactions[0].kindEffect, 'expense');
+  assert.equal(result.transactions[0].categoryLabel, 'खनिज मिश्रण');
 });

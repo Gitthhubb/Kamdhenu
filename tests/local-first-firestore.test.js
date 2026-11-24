@@ -42,16 +42,31 @@ test('configures Firestore with persistent multi-tab IndexedDB cache', async () 
 test('renders the application shell without waiting for Firestore readiness', async () => {
   const source = await read('../src/main.jsx');
   assert.doesNotMatch(source, /if\s*\(!cloudReady\)\s*return/);
-  assert.match(source, /fromCache/);
+  assert.match(source, /getDocFromCache/);
   assert.match(source, /sync-status/);
 });
 
-test('bounds live milk and transaction listeners to the selected month', async () => {
+test('routine startup and month changes use cache-only reads, not live server listeners', async () => {
   const source = await read('../src/main.jsx');
   assert.match(source, /getMonthDateRange\(month\)/);
-  assert.match(source, /where\('date','>=',startDate\)/);
-  assert.match(source, /where\('date','<',endDateExclusive\)/);
-  assert.match(source, /includeMetadataChanges:\s*true/);
+  assert.match(source, /getDocFromCache\(/);
+  assert.match(source, /getDocsFromCache\(/);
+  assert.match(source, /syncVersionRef\.current!==cacheVersion/);
+  assert.doesNotMatch(source, /onSnapshot\(/);
+  const startup = source.slice(source.indexOf('useEffect(()=>{\n  if(!user?.uid)return;'), source.indexOf('async function syncNow'));
+  assert.doesNotMatch(startup, /getDocFromServer|getDocsFromServer|waitForPendingWrites/);
+});
+
+test('explicit Sync Now refreshes the profile and selected-month records from server', async () => {
+  const source = await read('../src/main.jsx');
+  const sync = source.slice(source.indexOf('async function syncNow'), source.indexOf('async function saveAccountSettings'));
+  assert.match(source, /अभी सिंक करें/);
+  assert.match(sync, /getDocFromServer\(/);
+  assert.equal((sync.match(/getDocsFromServer\(/g) || []).length, 2);
+  assert.match(sync, /hasPendingWrites/);
+  assert.match(sync, /waitForPendingWrites/);
+  assert.match(sync, /monthRef\.current!==syncMonth/);
+  assert.match(sync, /syncVersionRef\.current!==syncVersion/);
 });
 
 test('JSON and Drive backups fetch complete history rather than the selected month', async () => {
@@ -70,8 +85,35 @@ test('restore deduplication checks complete server-side collections', async () =
   assert.doesNotMatch(restore, /getDocs\(/);
 });
 
-test('does not allow profile-backed writes until cached or server-confirmed account settings are available', async () => {
+test('cache miss does not gate account UI indefinitely', async () => {
   const source = await read('../src/main.jsx');
-  assert.match(source, /setProfileReady\(!snap\.metadata\.fromCache\s*\|\|\s*snap\.exists\(\)\)/);
-  assert.ok((source.match(/disabled=\{!profileReady\}/g) || []).length >= 3);
+  assert.match(source, /setProfileReady\(true\)/);
+  assert.match(source, /setSettingsReady\(Boolean\(profileSnap\)\)/);
+  assert.match(source, /if\(includeSettings\)profilePatch\.settings=next\.settings/);
+  assert.ok((source.match(/disabled=\{!profileReady\}/g) || []).length >= 2);
+  assert.match(source, /disabled=\{!settingsReady\}/);
+});
+
+test('entry writes and deletions update local UI without awaiting server acknowledgement', async () => {
+  const source = await read('../src/main.jsx');
+  const milkSave = source.slice(source.indexOf('async function saveMilk'), source.indexOf('async function saveTransaction'));
+  const txSave = source.slice(source.indexOf('async function saveTransaction'), source.indexOf('function exportCsv'));
+  const deleteMilk = source.slice(source.indexOf('async function deleteMilk'), source.indexOf('async function deleteTransaction'));
+  const deleteTx = source.slice(source.indexOf('async function deleteTransaction'), source.indexOf('function selectPeriodPage'));
+  assert.match(milkSave, /const ref=doc\(collection/);
+  assert.match(milkSave, /persist\(next\)/);
+  assert.doesNotMatch(milkSave, /await addDoc|await setDoc/);
+  assert.match(txSave, /const ref=doc\(collection/);
+  assert.match(txSave, /setStore\(current=>/);
+  assert.doesNotMatch(txSave, /await addDoc|await setDoc/);
+  assert.doesNotMatch(deleteMilk+deleteTx, /await deleteDoc/);
+  assert.match(milkSave, /trackWrite\(milkWrite/);
+  assert.match(txSave, /trackWrite\(transactionWrite/);
+  assert.match(deleteMilk+deleteTx, /trackWrite\(deletion/);
+});
+
+test('resets account-specific cached state when the authenticated UID changes', async () => {
+  const source = await read('../src/main.jsx');
+  assert.match(source, /const accountChanged=accountUidRef\.current!==user\.uid/);
+  assert.match(source, /if\(accountChanged\)\{accountUidRef\.current=user\.uid;[^}]*setStore\(DEFAULT_STATE\)/);
 });

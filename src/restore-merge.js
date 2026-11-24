@@ -4,8 +4,10 @@ export function normalizeMilkRecord(row = {}) {
   return {
     date: String(row.sale_date ?? row.date ?? ''),
     shift: String(row.shift ?? 'morning'),
+    ...(typeof row.shiftLabel === 'string' ? { shiftLabel: row.shiftLabel.slice(0, 60) } : {}),
     milkman: String(row.buyer ?? row.milkman ?? ''),
     milkType: String(row.milk_type ?? row.milkType ?? 'cow'),
+    ...(typeof row.milkTypeLabel === 'string' ? { milkTypeLabel: row.milkTypeLabel.slice(0, 60) } : {}),
     quantity: Number(row.quantity),
     rate: Number(row.rate),
     amount: Number(row.amount),
@@ -17,9 +19,12 @@ export function normalizeTransactionRecord(row = {}) {
   return {
     date: String(row.date ?? ''),
     kind: String(row.kind ?? ''),
+    ...(typeof row.kindLabel === 'string' ? { kindLabel: row.kindLabel.slice(0, 60) } : {}),
+    ...(typeof row.kindEffect === 'string' ? { kindEffect: row.kindEffect } : {}),
     amount: Number(row.amount),
     party: String(row.party ?? ''),
     category: String(row.category ?? ''),
+    ...(typeof row.categoryLabel === 'string' ? { categoryLabel: row.categoryLabel.slice(0, 60) } : {}),
     remarks: String(row.remarks ?? ''),
   };
 }

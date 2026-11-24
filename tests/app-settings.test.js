@@ -1,3 +1,4 @@
+import { normalizeCatalogues } from '../src/catalogues.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DEFAULT_SETTINGS, normalizeSettings } from '../src/app-settings.js';
@@ -44,6 +45,7 @@ test('normalises configurable profile identity, currency and editable rate prefe
     defaultMilkType: 'cow',
     defaultRate: '64.5',
     lockDefaultRate: false,
+    catalogues: normalizeCatalogues(),
   });
 });
 
@@ -51,4 +53,17 @@ test('falls back safely for unsupported currency and invalid text values', () =>
   const result = normalizeSettings({ ledgerName: 42, currency: 'XYZ' });
   assert.equal(result.ledgerName, DEFAULT_SETTINGS.ledgerName);
   assert.equal(result.currency, 'INR');
+});
+
+test('moves a default away from an inactive custom milk type', () => {
+  const result = normalizeSettings({
+    defaultMilkType: 'goat',
+    catalogues: {
+      milkTypes: [
+        { value: 'goat', label: 'बकरी', active: false },
+        { value: 'buffalo', label: 'भैंस', active: true },
+      ],
+    },
+  });
+  assert.equal(result.defaultMilkType, 'buffalo');
 });

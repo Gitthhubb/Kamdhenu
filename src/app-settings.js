@@ -1,3 +1,4 @@
+import { normalizeCatalogues } from './catalogues.js';
 export const SUPPORTED_CURRENCIES = Object.freeze(['INR', 'USD', 'GBP', 'EUR']);
 
 export const DEFAULT_SETTINGS = Object.freeze({
@@ -11,6 +12,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
   defaultMilkType: 'buffalo',
   defaultRate: '',
   lockDefaultRate: true,
+  catalogues: normalizeCatalogues(),
 });
 
 const isObject = value => value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -30,9 +32,13 @@ function textValue(value, fallback, maxLength) {
 export function normalizeSettings(value, rates = {}) {
   const source = isObject(value) ? value : {};
   const legacyPersonalMode = source.personalMode === true;
-  const defaultMilkType = source.defaultMilkType === 'cow' || source.defaultMilkType === 'buffalo'
-    ? source.defaultMilkType
-    : 'buffalo';
+  const catalogues = normalizeCatalogues(source.catalogues);
+  const requestedMilkType = typeof source.defaultMilkType === 'string' ? source.defaultMilkType : '';
+  const defaultMilkType = catalogues.milkTypes.some(item => item.value === requestedMilkType && item.active)
+    ? requestedMilkType
+    : (catalogues.milkTypes.find(item => item.value === 'buffalo' && item.active)?.value
+      || catalogues.milkTypes.find(item => item.active)?.value
+      || 'buffalo');
   const hasRate = Object.prototype.hasOwnProperty.call(source, 'defaultRate');
   const legacyRate = Object.prototype.hasOwnProperty.call(source, 'buffaloRate')
     ? source.buffaloRate
@@ -59,5 +65,6 @@ export function normalizeSettings(value, rates = {}) {
     lockDefaultRate: typeof source.lockDefaultRate === 'boolean'
       ? source.lockDefaultRate
       : DEFAULT_SETTINGS.lockDefaultRate,
+    catalogues,
   };
 }
