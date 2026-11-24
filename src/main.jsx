@@ -507,6 +507,8 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
   <div className={'sync-status sync-'+syncStatus} role="status" aria-live="polite">{syncMessages[syncStatus]||syncMessages.loading}</div>
   <div className="sync-action-row"><button type="button" className="sync-now" onClick={syncNow} disabled={syncBusy||!navigator.onLine}>{syncBusy?'समन्वय जारी…':'अभी सिंक करें'}</button></div>
   <div className="account-bar"><span title={user?.email||'अतिथि खाता'}>{user?.isAnonymous?'अतिथि सत्र · इसी ब्राउज़र पर':user?.email}</span>{user?.isAnonymous?<><button type="button" onClick={linkGuestAccount}>Google खाते से जोड़ें</button><button type="button" onClick={leaveGuestSession}>सत्र छोड़ें</button></>:<button type="button" onClick={signOutAccount}>साइन आउट</button>}</div>
+  <datalist id="milk-supplier-options">{(store.buyers||[]).map(name=><option key={name} value={name}/>)}</datalist>
+  <datalist id="transaction-party-options">{store.settings.catalogues.transactionParties.filter(item=>item.active).map(item=><option key={item.value} value={item.label}/>)}</datalist>
   <div className="drive-actions">
    <button type="button" className="secondary" onClick={()=>requestDriveAccess(backupToDrive)} disabled={driveBusy}>{driveBusy?'प्रक्रिया जारी है…':'Drive में बैकअप'}</button>
    <button type="button" className="secondary" onClick={()=>requestDriveAccess(restoreFromDrive)} disabled={driveBusy}>Drive से पुनर्स्थापित करें</button>
@@ -574,7 +576,6 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
    {tab==='Milk'&&<>
     <form className="entry-form" onSubmit={saveMilk}>
      <label>दूधवाला (Milkman)<input className="text-input full-text" list="milk-supplier-options" value={store.settings.quickEntryEnabled?store.settings.defaultMilkman:form.buyer} onChange={e=>setForm({...form,buyer:e.target.value})} placeholder="नाम लिखें" readOnly={store.settings.quickEntryEnabled} required/></label>
-     <datalist id="milk-supplier-options">{(store.buyers||[]).map(name=><option key={name} value={name}/>)}</datalist>
      <div className="field-pair">
       <label>दिनांक<input className="date-input" type="date" value={form.sale_date} onChange={e=>setForm({...form,sale_date:e.target.value})} required/></label>
       <label>समय<RadioChoices name="milk-shift" value={form.shift} onChange={v=>setForm({...form,shift:v})} options={store.settings.catalogues.shifts.filter(item=>item.active)}/></label>
@@ -608,7 +609,6 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
      <label>लेन-देन का प्रकार<RadioChoices name="transaction-kind" value={txForm.kind} onChange={v=>setTxForm({...txForm,kind:v})} options={store.settings.catalogues.transactionKinds.filter(item=>item.active)}/></label>
      <label>राशि ({currencySymbol})<input className="number-input" type="number" min=".01" step=".01" inputMode="decimal" placeholder="0" value={txForm.amount} onChange={e=>setTxForm({...txForm,amount:e.target.value})} required/></label>
      <label>किससे / किसे (To Whom)<input className="text-input full-text" list="transaction-party-options" value={txForm.party} onChange={e=>setTxForm({...txForm,party:e.target.value})} placeholder="व्यक्ति या पार्टी का नाम"/></label>
-     <datalist id="transaction-party-options">{store.settings.catalogues.transactionParties.filter(item=>item.active).map(item=><option key={item.value} value={item.label}/>)}</datalist>
      {(store.settings.catalogues.transactionKinds.find(item=>item.value===txForm.kind)?.effect||txForm.kind)==='expense'&&<label>खर्च का मद<RadioChoices name="expense-category" value={txForm.category} onChange={v=>setTxForm({...txForm,category:v})} options={store.settings.catalogues.expenseCategories.filter(item=>item.active)}/></label>}
      <label>टिप्पणी<textarea className="comment-input" rows="2" value={txForm.remarks} onChange={e=>setTxForm({...txForm,remarks:e.target.value})} placeholder="वैकल्पिक टिप्पणी"/></label>
      <p className="append-note">हर लेन-देन नई प्रविष्टि है। इसे बदला नहीं जा सकता; आवश्यकता होने पर हटाया जा सकता है।</p>
