@@ -2,8 +2,9 @@ const ACCOUNTING_EFFECTS = new Set(['received', 'remained', 'advance', 'expense'
 
 export function getTransactionEffect(transaction, transactionKinds = []) {
   const configured = transactionKinds.find(item => item.value === transaction?.kind)?.effect;
-  const effect = transaction?.kindEffect || configured || transaction?.kind;
-  return ACCOUNTING_EFFECTS.has(effect) ? effect : null;
+  if (ACCOUNTING_EFFECTS.has(transaction?.kindEffect)) return transaction.kindEffect;
+  if (ACCOUNTING_EFFECTS.has(configured)) return configured;
+  return ACCOUNTING_EFFECTS.has(transaction?.kind) ? transaction.kind : null;
 }
 
 export function summarizeTransactions(transactions = [], transactionKinds = []) {
