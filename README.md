@@ -18,7 +18,7 @@ See [Android installation instructions](docs/ANDROID_INSTALLATION.md). This is n
 
 ## Local data and synchronisation
 
-Kamdhenu uses Firestore's persistent multi-tab IndexedDB cache on supported browsers. The application shell and previously viewed ledger month can open from local cache while Firestore synchronises in the background. Live milk and transaction listeners are limited to the selected calendar month; selecting an older month loads that month on demand.
+Kamdhenu uses Firestore's persistent multi-tab IndexedDB cache on supported browsers. Routine startup and month navigation read from local cache only; they do not download the selected month from the server. Use **अभी सिंक करें (Sync Now)** when you need to retrieve the latest profile and currently selected month's ledger from another device. New entries and deletions are queued locally by Firestore and synchronise when connectivity returns.
 
 New records and deletions are applied locally and queued by Firestore while offline, then synchronised when connectivity returns. The sync strip distinguishes cached, pending, offline and server-confirmed states. A first device with no cached ledger still needs a connection to retrieve existing account data.
 
@@ -71,8 +71,11 @@ Each account's configurable ledger profile and quick-entry settings live in the 
 Kamdhenu is not configured around one household or one named operator. Each signed-in Google account or guest session has its own configurable ledger profile. The profile can set:
 - Ledger or business name, subtitle and optional footer note.
 - Display currency (INR, USD, GBP or EUR).
+- A saved milkman/supplier catalogue, with an independently configurable default rate for each supplier.
+- Saved supplier names and rates are suggested in the milk-entry form; new suppliers are remembered with the rate first entered.
+- Configurable milk types, each with a per-litre default rate, plus delivery shifts.
 - An optional quick-entry preset with a user-defined label, supplier/milkman, milk type and default rate.
-- Whether the preset rate is locked or may be changed on each entry.
+- Whether the quick-entry preset rate is locked or may be changed on each entry.
 
 The former Mother's personal mode is migrated to the generic quick-entry profile on load and when importing an older JSON/Drive backup. Existing milk and transaction records are not rewritten by this migration. New accounts start with neutral defaults.
 
@@ -81,7 +84,7 @@ Accounts remain isolated by Firebase UID. This release does not provide shared t
 ## Record behaviour
 Entries cannot be edited. Each entry can be deleted individually after confirmation. Deletions are permanent; export a JSON or Drive backup before removing anything. Restoring a backup first validates every row, date, type, amount, rate and profile setting before any Firestore write. It then merges only missing records. Reusing the same backup does not create duplicates; older records without IDs are matched by their normalized fields. Distinct records with different IDs are preserved even when their visible values match. If the profile settings write fails after records have been added, re-import the same JSON backup; existing records are skipped and profile settings can be retried.
 
-The existing three date pages, cow/buffalo milk choices and expense categories remain. Each account can configure its ledger identity, currency and optional quick-entry profile independently.
+The three date pages remain. Milk types, supplier names, supplier-specific rates, shifts, transaction kinds, counterparties and expense categories are account-configurable. Each authenticated account has its own catalogue and ledger.
 
 ## Free tier
 Firestore Spark provides a daily free quota: 1 GiB stored data, 50,000 reads, 20,000 writes and 20,000 deletes per day, plus 10 GiB/month outbound transfer. When Spark quotas are exceeded, the relevant service is capped until the quota resets; usage does not automatically switch to paid billing. Do not attach a billing account or enable Cloud Storage.
@@ -103,4 +106,13 @@ If an account's profile is not present in the local cache, entry recording remai
 
 ## Configurable fixed-entry catalogues
 
-Account settings support configurable milk types and their per-litre rates, milk-delivery shifts, transaction kinds, transaction counterparties and expense categories. Milk supplier names are maintained as a separate saved list. Options can be added, renamed, reordered or deactivated; removing a supplier from suggestions does not rewrite historical records. Custom transaction kinds carry an explicit accounting effect (received, remained, advance or expense), so monthly totals retain defined semantics. Stable catalogue keys and label snapshots preserve the meaning and display of historical records. At least one active option is retained in each selectable catalogue. Milk quantity, calculated milk amount and transaction/expenditure amount remain numeric entry data, not configuration values.
+Version 2.0 supports account-scoped milkman/supplier names and an individual default rate per supplier. Supplier selection prefills the rate in the milk form; the first rate entered for a new supplier becomes its default. Supplier names and rates can be added, renamed, reordered, deactivated and restored from backup. Milk types and per-litre type rates, shifts, transaction kinds, transaction counterparties and expense categories are also configurable. Custom transaction kinds carry an explicit accounting effect (received, remained, advance or expense), and monthly totals aggregate by that effect. Stable catalogue keys and label snapshots preserve historical meaning. Milk quantity, calculated milk amount and transaction/expenditure amount remain numeric ledger fields, not configuration values.
+
+
+## Version 2.0 release checklist
+
+- Application source and dependencies are validated by GitHub Actions: `npm test`, `npm run check` and `npm audit --audit-level=high`.
+- Render deploys the `main` branch automatically after merge.
+- **Firebase Console action required:** after deploying v2.0, open the Firestore Rules editor for the Firebase project configured on Render, replace the rules with this repository's `firestore.rules`, and Publish. The v2.0 rules accept validated configurable catalogue keys and label snapshots while retaining UID ownership and append-only milk/transaction records. Until these rules are published, current writes with descriptive labels or custom catalogue keys can be rejected by the previously deployed rules.
+- Before using the ledger on a new device, sign in and press **अभी सिंक करें** to load the account profile and its supplier/rate catalogues.
+- Export a JSON or Drive backup before making any material catalogue changes. Restore remains merge-only and preserves existing account configuration and historical records.
