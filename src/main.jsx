@@ -475,6 +475,9 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
   const quantity=Number(form.quantity),quickEntry=store.settings.quickEntryEnabled,quickSupplierRate=getMilkSupplierDefaultRate(store.settings,store.settings.defaultMilkman),rate=Number(quickEntry&&store.settings.lockDefaultRate?(quickSupplierRate||store.settings.defaultRate):form.rate),milkman=(quickEntry?store.settings.defaultMilkman:form.buyer).trim(),milkType=quickEntry?store.settings.defaultMilkType:form.milk_type;
   if(form.sale_date<periodStart||form.sale_date>periodEnd)return report('दिनांक चुने हुए पृष्ठ की अवधि में होनी चाहिए।');
   if(!form.sale_date||!milkman||!String(form.quantity).trim()||!String(form.rate).trim()||!Number.isFinite(quantity)||quantity<=0||!Number.isFinite(rate)||rate<0)return report('दिनांक, दूधवाले का नाम, शून्य से अधिक मात्रा और वैध दर दर्ज करें।');
+  if(!quickEntry&&store.settings.catalogues.milkSuppliers.length>=40&&!store.settings.catalogues.milkSuppliers.some(item=>item.label.toLocaleLowerCase()===milkman.toLocaleLowerCase())){
+   return report('अधिकतम 40 सप्लायर विकल्प रखे जा सकते हैं। पहले सेटिंग्स में कोई पुराना विकल्प हटाएँ।');
+  }
   try{
    const record={date:form.sale_date,shift:form.shift||'morning',shiftLabel:shiftLabel(form.shift||'morning',store.settings.catalogues),milkman,milkType,milkTypeLabel:milkLabel(milkType,store.settings.catalogues),quantity,rate,amount:Math.round(quantity*rate*100)/100,remarks:form.remarks.trim(),createdAt:serverTimestamp()};
    const ref=doc(collection(db,'users',user.uid,'milk'));
@@ -667,7 +670,7 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
      <label>दिनांक<input className="date-input" type="date" value={txForm.date} onChange={e=>setTxForm({...txForm,date:e.target.value})} required/></label>
      <label>लेन-देन का प्रकार<RadioChoices name="transaction-kind" value={txForm.kind} onChange={v=>setTxForm({...txForm,kind:v})} options={store.settings.catalogues.transactionKinds.filter(item=>item.active)}/></label>
      <label>राशि ({currencySymbol})<input className="number-input" type="number" min=".01" step=".01" inputMode="decimal" placeholder="0" value={txForm.amount} onChange={e=>setTxForm({...txForm,amount:e.target.value})} required/></label>
-     <label>किससे / किसे (To Whom)<input className="text-input full-text" list="transaction-party-options" maxLength="80" value={txForm.party} onChange={e=>setTxForm({...txForm,party:e.target.value})} placeholder="व्यक्ति या पार्टी का नाम"/></label>
+     <label>किससे / किसे (To Whom)<input className="text-input full-text" list="transaction-party-options" maxLength="60" value={txForm.party} onChange={e=>setTxForm({...txForm,party:e.target.value})} placeholder="व्यक्ति या पार्टी का नाम"/></label>
      {(store.settings.catalogues.transactionKinds.find(item=>item.value===txForm.kind)?.effect||txForm.kind)==='expense'&&<label>खर्च का मद<RadioChoices name="expense-category" value={txForm.category} onChange={v=>setTxForm({...txForm,category:v})} options={store.settings.catalogues.expenseCategories.filter(item=>item.active)}/></label>}
      <label>टिप्पणी<textarea className="comment-input" rows="2" value={txForm.remarks} onChange={e=>setTxForm({...txForm,remarks:e.target.value})} placeholder="वैकल्पिक टिप्पणी"/></label>
      <p className="append-note">हर लेन-देन नई प्रविष्टि है। इसे बदला नहीं जा सकता; आवश्यकता होने पर हटाया जा सकता है।</p>
