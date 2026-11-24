@@ -61,7 +61,7 @@ function RadioChoices({value,onChange,options,name}){
 }
 function CatalogueEditor({title,items,onChange,onAdd,showEffects=false,showRates=false,showSupplierRates=false,rates={},onRateChange}){
  return <fieldset className="catalogue-editor"><legend>{title}</legend>
-  {items.map((item,index)=><div className={'catalogue-option '+(showRates?'with-rate':'')} key={item.value}>
+  {items.map((item,index)=><div className={'catalogue-option '+((showRates||showSupplierRates)?'with-rate':'')} key={item.value}>
    <input aria-label={title+' का नाम'} maxLength="60" value={item.label} onChange={e=>onChange(items.map(x=>x.value===item.value?{...x,historicalLabel:x.historicalLabel||x.label,label:e.target.value}:x))}/>
    {showRates&&<input aria-label={item.label+' की प्रति लीटर दर'} type="number" min="0" step=".01" inputMode="decimal" placeholder="दर/लीटर" value={rates[item.value+'_rate']??''} onChange={e=>onRateChange(item.value+'_rate',e.target.value)}/>}
    {showSupplierRates&&<input aria-label={item.label+' की डिफ़ॉल्ट दर'} type="number" min="0" step=".01" inputMode="decimal" placeholder="दर/लीटर" value={item.defaultRate??''} onChange={e=>onChange(items.map(x=>x.value===item.value?{...x,defaultRate:e.target.value}:x))}/>}
