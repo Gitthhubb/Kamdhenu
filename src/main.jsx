@@ -283,7 +283,7 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
  }
  function persist(next,includeSettings=settingsReady){
   try{
-   const profilePatch={rates:next.rates,buyers:next.buyers,updatedAt:serverTimestamp()};
+   const profilePatch={rates:next.rates,buyers:next.buyers,supplierDefaults:next.settings.catalogues.milkSuppliers,updatedAt:serverTimestamp()};
    if(includeSettings)profilePatch.settings=next.settings;
    const write=setDoc(doc(db,'users',user.uid),profilePatch,{merge:true});
    trackWrite(write);
@@ -393,8 +393,7 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
    ...milkExisting.map(item=>item.milkman),
    ...backup.rows.map(item=>item.milkman),
    mergedSettings.defaultMilkman,
-  ],remoteProfile.supplierDefaults||[]
-  ]);
+  ],remoteProfile.supplierDefaults||[]);
   const nextBuyers=restoredSettings.catalogues.milkSuppliers.filter(item=>item.active).map(item=>item.label);
   const restoredProfile={...restoreBase,rates:mergedRates,buyers:nextBuyers,settings:restoredSettings};
   const profileSaved=await persist(restoredProfile,true);
