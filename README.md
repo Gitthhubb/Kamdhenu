@@ -64,7 +64,7 @@ Each Google account and guest session has these collections:
 - `milk`: date, morning/evening, milkman, cow/buffalo, quantity, rate and amount.
 - `transactions`: date, received/remained/advance/expense, amount, party, category and remarks.
 
-Each account's configurable ledger profile and quick-entry settings live in the same user document.
+Each account's configurable ledger profile, supplier catalogue and quick-entry settings live in the same user document.
 
 ## Account-level configuration
 
@@ -77,7 +77,7 @@ Kamdhenu is not configured around one household or one named operator. Each sign
 - An optional quick-entry preset with a user-defined label, supplier/milkman, milk type and default rate.
 - Whether the quick-entry preset rate is locked or may be changed on each entry.
 
-The former Mother's personal mode is migrated to the generic quick-entry profile on load and when importing an older JSON/Drive backup. Existing milk and transaction records are not rewritten by this migration. New accounts start with neutral defaults.
+The former one-household personal mode is migrated to the generic quick-entry profile on load and when importing an older JSON/Drive backup. Existing milk and transaction records are not rewritten by this migration. Existing saved milkman names are migrated into supplier suggestions without fabricating rates; a supplier's first recorded rate becomes its default. New accounts start with neutral defaults.
 
 Accounts remain isolated by Firebase UID. This release does not provide shared team workspaces or multi-user access to the same ledger; each authenticated account maintains a separate dataset.
 
