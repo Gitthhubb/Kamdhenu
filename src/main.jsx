@@ -14,6 +14,7 @@ import{collection,doc,setDoc,addDoc,deleteDoc,getDocFromCache,getDocFromServer,g
 import{DEFAULT_SETTINGS,normalizeSettings,SUPPORTED_CURRENCIES}from'./app-settings';
 import{ensureMilkSupplier,mergeMilkSuppliers,getMilkSupplierDefaultRate}from'./catalogues';
 import{getTransactionEffect,summarizeTransactions}from'./accounting';
+import{createCsv}from'./csv-export';
 
 const today=()=>{const d=new Date();return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-')};
 const number=n=>new Intl.NumberFormat('hi-IN',{maximumFractionDigits:2}).format(Number(n)||0);
@@ -26,7 +27,8 @@ const blankForm=(rates=null)=>({sale_date:today(),shift:'morning',buyer:'',milk_
 const configuredMilkForm=(settings,rates)=>{
  const milkType=settings.catalogues.milkTypes.find(item=>item.active)?.value||'cow';
  const base={...blankForm(rates),shift:settings.catalogues.shifts.find(item=>item.active)?.value||'morning',milk_type:milkType,rate:String(rates?.[milkType+'_rate']??0)};
- return settings.quickEntryEnabled?{...base,buyer:settings.defaultMilkman,milk_type:settings.defaultMilkType,rate:String(settings.defaultRate||rates[settings.defaultMilkType+'_rate']||'')}:base;
+ const supplierRate=getMilkSupplierDefaultRate(settings,settings.defaultMilkman);
+ return settings.quickEntryEnabled?{...base,buyer:settings.defaultMilkman,milk_type:settings.defaultMilkType,rate:String(supplierRate||settings.defaultRate||rates[settings.defaultMilkType+'_rate']||'')}:base;
 };
 const configuredTransactionForm=settings=>({...blankTransaction(),kind:settings.catalogues.transactionKinds.find(item=>item.active)?.value||'received',category:settings.catalogues.expenseCategories.find(item=>item.active)?.value||'others'});
 const blankTransaction=()=>({date:today(),kind:'received',amount:'',party:'',category:'paddy_stalk',remarks:''});
@@ -215,6 +217,11 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
    :settingsDraft;
   const settings=normalizeSettings(preparedSettingsDraft,ratesDraft);
   const nextRates={...ratesDraft};
+  if(settings.quickEntryEnabled){
+   const supplierRate=Number(settings.defaultRate);
+   settings.catalogues.milkSuppliers=settings.catalogues.milkSuppliers.map(item=>item.label.toLocaleLowerCase()===settings.defaultMilkman.toLocaleLowerCase()
+    ?{...item,defaultRate:String(supplierRate),active:true}:item);
+  }
   for(const item of settings.catalogues.milkTypes){
    const raw=nextRates[item.value+'_rate']??0;
    const rate=raw===''?0:Number(raw);
@@ -455,7 +462,7 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
  async function saveMilk(e){
   e.preventDefault();
   if(!profileReady)return report('खाता सेटिंग्स अभी उपलब्ध नहीं हैं। समन्वय पूरा होने तक प्रतीक्षा करें।');
-  const quantity=Number(form.quantity),quickEntry=store.settings.quickEntryEnabled,rate=Number(quickEntry&&store.settings.lockDefaultRate?store.settings.defaultRate:form.rate),milkman=(quickEntry?store.settings.defaultMilkman:form.buyer).trim(),milkType=quickEntry?store.settings.defaultMilkType:form.milk_type;
+  const quantity=Number(form.quantity),quickEntry=store.settings.quickEntryEnabled,quickSupplierRate=getMilkSupplierDefaultRate(store.settings,store.settings.defaultMilkman),rate=Number(quickEntry&&store.settings.lockDefaultRate?(quickSupplierRate||store.settings.defaultRate):form.rate),milkman=(quickEntry?store.settings.defaultMilkman:form.buyer).trim(),milkType=quickEntry?store.settings.defaultMilkType:form.milk_type;
   if(form.sale_date<periodStart||form.sale_date>periodEnd)return report('दिनांक चुने हुए पृष्ठ की अवधि में होनी चाहिए।');
   if(!form.sale_date||!milkman||!String(form.quantity).trim()||!String(form.rate).trim()||!Number.isFinite(quantity)||quantity<=0||!Number.isFinite(rate)||rate<0)return report('दिनांक, दूधवाले का नाम, शून्य से अधिक मात्रा और वैध दर दर्ज करें।');
   try{
@@ -498,7 +505,7 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
  function exportCsv(){
   const data=store.rows.filter(x=>x.sale_date.startsWith(month)).sort(sortNewest);
   const lines=[['दिनांक','दूधवाला','समय','दूध का प्रकार','मात्रा (लीटर)','दर','राशि','टिप्पणी'],...data.map(x=>[x.sale_date,x.buyer,x.shiftLabel||historicalCatalogueLabel(store.settings.catalogues.shifts,x.shift,'समय दर्ज नहीं'),x.milkTypeLabel||historicalCatalogueLabel(store.settings.catalogues.milkTypes,x.milk_type),x.quantity,x.rate,x.amount,x.remarks||''])];
-  const csv=lines.map(row=>row.map(x=>{let v=String(x??'');if(/^[\\t\\r ]*[=+@-]/.test(v))v="'"+v;return '"'+v.replaceAll('"','""')+'"'}).join(',')).join('\r\n');
+  const csv=createCsv(lines);
   const url=URL.createObjectURL(new Blob(['\\ufeff'+csv],{type:'text/csv;charset=utf-8'})),a=document.createElement('a');a.href=url;a.download='kamdhenu-doodh-'+month+'.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
  }
 
@@ -546,7 +553,7 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
    <button type="button" className="secondary" onClick={()=>requestDriveAccess(backupToDrive)} disabled={driveBusy}>{driveBusy?'प्रक्रिया जारी है…':'Drive में बैकअप'}</button>
    <button type="button" className="secondary" onClick={()=>requestDriveAccess(restoreFromDrive)} disabled={driveBusy}>Drive से पुनर्स्थापित करें</button>
   </div>
-  <div className="storage-notice">परीक्षण संस्करण · प्रविष्टियाँ आपके Firebase खाते (Google या अतिथि) के साथ Firestore में सिंक होती हैं। अतिथि डेटा को दूसरे डिवाइस पर सुरक्षित रखने के लिए Google खाते से जोड़ें। वास्तविक हिसाब Version 2.0 के स्थिर विमोचन के बाद दर्ज करें।</div>
+  <div className="storage-notice">प्रविष्टियाँ आपके Firebase खाते (Google या अतिथि) के साथ समन्वयित होती हैं। अतिथि डेटा को दूसरे डिवाइस पर सुरक्षित रखने के लिए Google खाते से जोड़ें। संस्करण 2.0 · उत्पादन उपयोग के लिए जारी।</div>
   <section className="mode-strip">
    <div><b>लेजर प्रोफ़ाइल और सेटिंग्स</b><small>{store.settings.quickEntryEnabled?store.settings.quickEntryLabel+' · '+store.settings.defaultMilkman:'सामान्य प्रविष्टि · '+store.settings.currency}</small></div>
    <button type="button" className="mode-settings" aria-expanded={settingsOpen} disabled={!settingsReady} onClick={()=>setSettingsOpen(v=>!v)}>{settingsOpen?'बंद करें':'कॉन्फ़िगर करें'}</button>
@@ -560,7 +567,11 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
    <label className="setting-check"><input type="checkbox" checked={settingsDraft.quickEntryEnabled} onChange={e=>setSettingsDraft({...settingsDraft,quickEntryEnabled:e.target.checked})}/> त्वरित प्रविष्टि प्रोफ़ाइल सक्षम करें</label>
    {settingsDraft.quickEntryEnabled&&<>
     <label>प्रोफ़ाइल का नाम<input className="full-text" maxLength="50" value={settingsDraft.quickEntryLabel} onChange={e=>setSettingsDraft({...settingsDraft,quickEntryLabel:e.target.value})} placeholder="उदाहरण: सुबह की सप्लाई"/></label>
-    <label>निश्चित सप्लायर / दूधवाला<input className="full-text" list="milk-supplier-options" maxLength="60" value={settingsDraft.defaultMilkman} onChange={e=>setSettingsDraft({...settingsDraft,defaultMilkman:e.target.value})} placeholder="नाम दर्ज करें" required/></label>
+    <label>निश्चित सप्लायर / दूधवाला<input className="full-text" list="milk-supplier-options" maxLength="60" value={settingsDraft.defaultMilkman} onChange={e=>{
+     const name=e.target.value;
+     const supplierRate=getMilkSupplierDefaultRate({...store.settings,catalogues:settingsDraft.catalogues},name);
+     setSettingsDraft({...settingsDraft,defaultMilkman:name,...(supplierRate!==''?{defaultRate:supplierRate}:{})});
+    }} placeholder="नाम दर्ज करें" required/></label>
     <label>डिफ़ॉल्ट दूध का प्रकार<RadioChoices name="quick-profile-milk-type" value={settingsDraft.defaultMilkType} onChange={v=>setSettingsDraft({...settingsDraft,defaultMilkType:v})} options={settingsDraft.catalogues.milkTypes.filter(item=>item.active)}/></label>
     <label>डिफ़ॉल्ट दर ({currencySymbol}/लीटर)<input className="number-input" type="number" min=".01" step=".01" inputMode="decimal" value={settingsDraft.defaultRate} onChange={e=>setSettingsDraft({...settingsDraft,defaultRate:e.target.value})} placeholder="उदाहरण: 70" required/></label>
     <label className="setting-check"><input type="checkbox" checked={settingsDraft.lockDefaultRate} onChange={e=>setSettingsDraft({...settingsDraft,lockDefaultRate:e.target.checked})}/> प्रविष्टि में डिफ़ॉल्ट दर स्थिर रखें</label>
@@ -699,7 +710,7 @@ function AuthGate(){
  if(!isFirebaseConfigured)return <div className="auth-shell"><section className="auth-card"><div className="brand-mark">क</div><h1>कामधेनु</h1><p>Firebase config अभी Render पर निर्धारित नहीं है।</p></section></div>;
  if(!ready)return <div className="auth-shell"><section className="auth-card"><div className="brand-mark">क</div><h1>कामधेनु</h1><p>Google खाते की जाँच हो रही है…</p></section></div>;
  if(user)return <LedgerApp user={user} installPrompt={installPrompt} isInstalled={isInstalled} onInstall={installApp} installHelp={installHelp}/>;
- return <div className="auth-shell"><section className="auth-card"><div className="brand-mark">क</div><h1>कामधेनु</h1><p className="auth-subtitle">दूध एवं दैनिक हिसाब</p>{!isInstalled&&<button className="install-action auth-install" type="button" onClick={installApp}>{installPrompt?'Android ऐप इंस्टॉल करें':'Android पर इंस्टॉल करें'}</button>}{installHelp&&<p className="auth-install-help">Chrome के ⋮ मेनू से “ऐप इंस्टॉल करें” या “होम स्क्रीन पर जोड़ें” चुनें।</p>}<button className="google-auth-button" type="button" disabled={busy} onClick={login}>{busy?'कृपया प्रतीक्षा करें…':'Google से साइन इन करें'}</button><div className="auth-divider">या</div><button className="guest-auth-button" type="button" disabled={busy} onClick={loginAsGuest}>{busy?'कृपया प्रतीक्षा करें…':'अतिथि के रूप में जारी रखें'}</button>{error&&<p className="error" role="alert">{error}</p>}<p className="auth-note">अतिथि मोड में खाता इसी ब्राउज़र से जुड़ा रहेगा। दूसरे डिवाइस पर डेटा पाने और सुरक्षित रखने के लिए ऐप में Google खाते से जोड़ें।</p><p className="auth-footnote">परीक्षण संस्करण · वास्तविक हिसाब Version 2.0 के स्थिर विमोचन के बाद।</p></section></div>;
+ return <div className="auth-shell"><section className="auth-card"><div className="brand-mark">क</div><h1>कामधेनु</h1><p className="auth-subtitle">दूध एवं दैनिक हिसाब</p>{!isInstalled&&<button className="install-action auth-install" type="button" onClick={installApp}>{installPrompt?'Android ऐप इंस्टॉल करें':'Android पर इंस्टॉल करें'}</button>}{installHelp&&<p className="auth-install-help">Chrome के ⋮ मेनू से “ऐप इंस्टॉल करें” या “होम स्क्रीन पर जोड़ें” चुनें।</p>}<button className="google-auth-button" type="button" disabled={busy} onClick={login}>{busy?'कृपया प्रतीक्षा करें…':'Google से साइन इन करें'}</button><div className="auth-divider">या</div><button className="guest-auth-button" type="button" disabled={busy} onClick={loginAsGuest}>{busy?'कृपया प्रतीक्षा करें…':'अतिथि के रूप में जारी रखें'}</button>{error&&<p className="error" role="alert">{error}</p>}<p className="auth-note">अतिथि मोड में खाता इसी ब्राउज़र से जुड़ा रहेगा। दूसरे डिवाइस पर डेटा पाने और सुरक्षित रखने के लिए ऐप में Google खाते से जोड़ें।</p><p className="auth-footnote">संस्करण 2.0.0 · सुरक्षित, खाते-आधारित दूध एवं दैनिक लेजर</p></section></div>;
 }
 function App(){return <AuthGate/>;}
 createRoot(document.getElementById('root')).render(<App/>);
