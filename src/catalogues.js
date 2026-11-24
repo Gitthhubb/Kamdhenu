@@ -82,7 +82,7 @@ function catalogueValue(prefix, label, items) {
 export function mergeMilkSuppliers(settings, names = []) {
   const items = [...(settings.catalogues.milkSuppliers || [])];
   for (const raw of names) {
-    const label = String(raw || '').trim().slice(0, 80);
+    const label = String(raw || '').trim().slice(0, 60);
     if (!label || items.some(item => item.label.toLocaleLowerCase() === label.toLocaleLowerCase())) continue;
     if (items.length >= 40) break;
     items.push({ value: catalogueValue('supplier', label, items), label, defaultRate: '', active: true });
@@ -91,7 +91,7 @@ export function mergeMilkSuppliers(settings, names = []) {
 }
 
 export function ensureMilkSupplier(settings, name, defaultRate = '') {
-  const label = String(name || '').trim().slice(0, 80);
+  const label = String(name || '').trim().slice(0, 60);
   if (!label) return settings;
   let rawRate = '';
   if (defaultRate !== '' && defaultRate !== null && defaultRate !== undefined) {
