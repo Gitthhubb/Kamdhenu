@@ -13,6 +13,7 @@ import{normalizeMilkRecord,normalizeTransactionRecord,planRestoreMerge}from'./re
 import{collection,doc,setDoc,addDoc,deleteDoc,getDocFromCache,getDocFromServer,getDocsFromCache,getDocsFromServer,query,where,orderBy,serverTimestamp,waitForPendingWrites}from'firebase/firestore';
 import{DEFAULT_SETTINGS,normalizeSettings,SUPPORTED_CURRENCIES}from'./app-settings';
 import{ensureMilkSupplier,mergeMilkSuppliers,getMilkSupplierDefaultRate}from'./catalogues';
+import{getTransactionEffect,summarizeTransactions}from'./accounting';
 
 const today=()=>{const d=new Date();return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-')};
 const number=n=>new Intl.NumberFormat('hi-IN',{maximumFractionDigits:2}).format(Number(n)||0);
@@ -510,11 +511,8 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
  const todayMilk=store.rows.filter(x=>x.sale_date===today());
  const total=xs=>xs.reduce((sum,x)=>sum+Number(x.amount||0),0);
  const qty=xs=>xs.reduce((sum,x)=>sum+Number(x.quantity||0),0);
- const received=monthTransactions.filter(x=>x.kind==='received');
- const remained=monthTransactions.filter(x=>x.kind==='remained');
- const advanced=monthTransactions.filter(x=>x.kind==='advance');
- const expenses=monthTransactions.filter(x=>x.kind==='expense');
- const receivedTotal=total(received),remainedTotal=total(remained),advancedTotal=total(advanced),expenseTotal=total(expenses);
+ const transactionTotals=summarizeTransactions(monthTransactions,store.settings.catalogues.transactionKinds);
+ const receivedTotal=transactionTotals.received,remainedTotal=transactionTotals.remained,advancedTotal=transactionTotals.advance,expenseTotal=transactionTotals.expense;
  const milkSalesTotal=total(monthMilk);
  const netAmount=milkSalesTotal+receivedTotal-advancedTotal-expenseTotal;
  const milkToday=qty(todayMilk),milkToDate=qty(monthMilk);
@@ -650,10 +648,11 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
     </form>
     <h2 className="section-title">इस अवधि के लेन-देन</h2>
     <div className="record-list">{periodTransactions.map(t=>{
-     const kindLabel=t.kind==='received'?'प्राप्त':t.kind==='remained'?'बाकी':t.kind==='advance'?'अग्रिम':'खर्च';
-     const cat=expenseCategories.find(c=>c.value===t.category)?.label||'अन्य';
+     const kindLabel=t.kindLabel||catalogueLabel(store.settings.catalogues.transactionKinds,t.kind,t.kind);
+     const effect=getTransactionEffect(t,store.settings.catalogues.transactionKinds);
+     const cat=t.categoryLabel||historicalCatalogueLabel(store.settings.catalogues.expenseCategories,t.category,'अन्य');
      return <article className="record" key={t.id}>
-      <div><b>{kindLabel}{(t.kindEffect||store.settings.catalogues.transactionKinds.find(item=>item.value===t.kind)?.effect||t.kind)==='expense'?' · '+cat:''}</b><small>{t.date}{t.party?' · '+t.party:''}{t.remarks?' · '+t.remarks:''}</small></div>
+      <div><b>{kindLabel}{effect==='expense'?' · '+cat:''}</b><small>{t.date}{t.party?' · '+t.party:''}{t.remarks?' · '+t.remarks:''}</small></div>
       <strong>{money(t.amount)}</strong><div className="record-actions"><button type="button" className="delete-record" onClick={()=>deleteTransaction(t.id)}>हटाएँ</button></div>
      </article>
     })}{!periodTransactions.length&&<p className="empty">इस अवधि में कोई लेन-देन दर्ज नहीं है।</p>}</div>
