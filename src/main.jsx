@@ -570,7 +570,7 @@ function LedgerApp({user,installPrompt,isInstalled,onInstall,installHelp}){
     <label>निश्चित सप्लायर / दूधवाला<input className="full-text" list="milk-supplier-options" maxLength="60" value={settingsDraft.defaultMilkman} onChange={e=>{
      const name=e.target.value;
      const supplierRate=getMilkSupplierDefaultRate({...store.settings,catalogues:settingsDraft.catalogues},name);
-     setSettingsDraft({...settingsDraft,defaultMilkman:name,...(supplierRate!==''?{defaultRate:supplierRate}:{})});
+     setSettingsDraft({...settingsDraft,defaultMilkman:name,defaultRate:supplierRate});
     }} placeholder="नाम दर्ज करें" required/></label>
     <label>डिफ़ॉल्ट दूध का प्रकार<RadioChoices name="quick-profile-milk-type" value={settingsDraft.defaultMilkType} onChange={v=>setSettingsDraft({...settingsDraft,defaultMilkType:v})} options={settingsDraft.catalogues.milkTypes.filter(item=>item.active)}/></label>
     <label>डिफ़ॉल्ट दर ({currencySymbol}/लीटर)<input className="number-input" type="number" min=".01" step=".01" inputMode="decimal" value={settingsDraft.defaultRate} onChange={e=>setSettingsDraft({...settingsDraft,defaultRate:e.target.value})} placeholder="उदाहरण: 70" required/></label>
