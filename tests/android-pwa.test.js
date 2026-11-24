@@ -53,7 +53,7 @@ test('service worker registers from the unauthenticated app shell and precaches 
   assert.match(authGate, /appinstalled/);
 
   const worker = await read('../public/sw.js');
-  assert.match(worker, /kamdhenu-pwa-v5/);
+  assert.match(worker, /kamdhenu-pwa-v6/);
   assert.match(worker, /icon-maskable\.svg/);
 });
 
