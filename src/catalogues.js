@@ -58,7 +58,7 @@ function normalizeList(input, fallback, catalogueKey) {
     }
     result.push(entry);
   }
-  if (!result.some(item => item.active)) return fallback.map(item => ({ ...item }));
+  if (!result.some(item => item.active) && fallback.length > 0) return fallback.map(item => ({ ...item }));
   return result;
 }
 
